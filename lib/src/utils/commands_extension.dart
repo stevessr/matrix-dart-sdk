@@ -198,8 +198,7 @@ extension CommandsClientExtension on Client {
       if (room == null) {
         throw RoomCommandException();
       }
-      final parts = args.msg.split(' ');
-      final reaction = parts.first.trim();
+      final reaction = args.msg;
       if (reaction.isEmpty) {
         throw CommandException('You must provide a reaction when using /react');
       }
