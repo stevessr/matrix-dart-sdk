@@ -8,10 +8,11 @@ import 'dart:core';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:async/async.dart';
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:http/http.dart' as http;
 import 'package:matrix/encryption.dart';
-import 'package:matrix/matrix.dart';
+import 'package:matrix/matrix.dart' hide Result;
 import 'package:matrix/matrix_api_lite/generated/fixed_model.dart';
 import 'package:matrix/msc_extensions/msc_unpublished_custom_refresh_token_lifetime/msc_unpublished_custom_refresh_token_lifetime.dart';
 import 'package:matrix/src/models/timeline_chunk.dart';
@@ -112,6 +113,9 @@ class Client extends MatrixApi {
   )?
   customImageResizer;
 
+  Future<MatrixVideoThumbnailResponse?> Function(MatrixVideoThumbnailArguments)?
+  customVideoThumbnailGenerator;
+
   /// Optional matrix-content-scanner proxy configuration.
   ///
   /// When set, media URL helpers resolve `mxc://` URIs to scanner URLs, and
@@ -160,8 +164,9 @@ class Client extends MatrixApi {
   /// enable the SDK to compute some code in background.
   /// Set [timelineEventTimeout] to the preferred time the Client should retry
   /// sending events on connection problems or to `Duration.zero` to disable it.
-  /// Set [customImageResizer] to your own implementation for a more advanced
-  /// and faster image resizing experience.
+  /// Set [customImageResizer] and [customVideoThumbnailGenerator] to your own
+  /// implementations for a more advanced and faster image resizing experience
+  /// and for generating video thumbnails, which the SDK can not do itself.
   /// Set [enableDehydratedDevices] to enable experimental support for enabling MSC3814 dehydrated devices.
   Client(
     this.clientName, {
@@ -191,6 +196,7 @@ class Client extends MatrixApi {
     Duration defaultNetworkRequestTimeout = const Duration(seconds: 35),
     this.sendTimelineEventTimeout = const Duration(minutes: 1),
     this.customImageResizer,
+    this.customVideoThumbnailGenerator,
     this.shareKeysWith = ShareKeysWith.crossVerifiedIfEnabled,
     this.enableDehydratedDevices = false,
     this.receiptsPublicByDefault = true,
@@ -572,8 +578,15 @@ class Client extends MatrixApi {
         assert(false);
       }
 
-      final loginTypes = await getLoginFlows() ?? [];
-      if (!loginTypes.any((f) => supportedLoginTypes.contains(f.type))) {
+      final loginTypesResult = await Result.capture(getLoginFlows());
+      final loginTypes = loginTypesResult.asValue?.value ?? [];
+      final loginTypesError = loginTypesResult.asError?.error;
+      if (loginTypesError != null && loginTypesError is! MatrixException) {
+        throw loginTypesError;
+      }
+
+      if (loginTypes.isNotEmpty &&
+          !loginTypes.any((f) => supportedLoginTypes.contains(f.type))) {
         throw BadServerLoginTypesException(
           loginTypes.map((f) => f.type).toSet(),
           supportedLoginTypes,

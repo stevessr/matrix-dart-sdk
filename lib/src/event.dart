@@ -432,10 +432,11 @@ class Event extends MatrixEvent {
       if (thumbnailBytes != null) {
         return MatrixImageFile(
           bytes: thumbnailBytes,
-          name: filename,
+          name: '$filename.thumbnail.${extensionFromMime(thumbnailMimetype)}',
           mimeType: thumbnailMimetype,
           width: thumbnailInfoMap.tryGet<int>('w'),
           height: thumbnailInfoMap.tryGet<int>('h'),
+          blurhash: thumbnailInfoMap.tryGet<String>('xyz.amorgan.blurhash'),
         );
       }
 
@@ -527,8 +528,16 @@ class Event extends MatrixEvent {
   bool get canRedact => senderId == room.client.userID || room.canRedact;
 
   /// Redacts this event. Throws `ErrorResponse` on error.
-  Future<String?> redactEvent({String? reason, String? txid}) async =>
-      await room.redactEvent(eventId, reason: reason, txid: txid);
+  Future<String?> redactEvent({
+    String? reason,
+    String? txid,
+    bool redactAllEdits = false,
+  }) => room.redactEvent(
+    eventId,
+    reason: reason,
+    txid: txid,
+    redactAllEdits: redactAllEdits,
+  );
 
   /// Searches for the reply event in the given timeline. Also returns the
   /// event fallback if the relationship type is `m.thread`.
@@ -625,7 +634,10 @@ class Event extends MatrixEvent {
   Uri? attachmentOrThumbnailMxcUrl({bool getThumbnail = false}) {
     final fileSize = infoMap.tryGet<int>('size');
     final thumbnailFileSize = thumbnailInfoMap.tryGet<int>('size');
+    // Only images can fall back to their original bytes as a preview, so the
+    // size-based discard must not apply to other types like m.video.
     if (getThumbnail &&
+        messageType == MessageTypes.Image &&
         fileSize != null &&
         thumbnailFileSize != null &&
         fileSize <= thumbnailFileSize) {
