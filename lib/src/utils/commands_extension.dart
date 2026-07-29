@@ -198,7 +198,7 @@ extension CommandsClientExtension on Client {
       if (room == null) {
         throw RoomCommandException();
       }
-      final reaction = args.msg;
+      final reaction = args.msg.trim();
       if (reaction.isEmpty) {
         throw CommandException('You must provide a reaction when using /react');
       }
