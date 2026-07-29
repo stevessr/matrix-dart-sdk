@@ -108,16 +108,18 @@ class InlineLatexSyntax extends InlineSyntax {
   bool onMatch(InlineParser parser, Match match) {
     if (match.start > 0) {
       final precedingText = match.input.substring(0, match.start);
-      final urlMatch =
-          RegExp(r'(?:https?://)[^\s]*$').firstMatch(precedingText);
+      final urlMatch = RegExp(
+        r'(?:https?://)[^\s]*$',
+      ).firstMatch(precedingText);
       if (urlMatch != null) {
         parser.addNode(Text(match[0]!));
         return true;
       }
     }
 
-    final element =
-        Element('span', [Element.text('code', htmlEscape.convert(match[1]!))]);
+    final element = Element('span', [
+      Element.text('code', htmlEscape.convert(match[1]!)),
+    ]);
     element.attributes['data-mx-maths'] = htmlAttrEscape.convert(match[1]!);
     parser.addNode(element);
     return true;
@@ -187,8 +189,9 @@ class PillSyntax extends InlineSyntax {
             : identifier,
       ),
     );
-    element.attributes['href'] =
-        htmlAttrEscape.convert('https://matrix.to/#/$identifier');
+    element.attributes['href'] = htmlAttrEscape.convert(
+      'https://matrix.to/#/$identifier',
+    );
     parser.addNode(element);
     return true;
   }
@@ -224,8 +227,16 @@ String markdown(
   bool enableLatex = true,
 }) {
   var ret = markdownToHtml(
-    text.replaceNewlines(),
-    // extensionSet: ExtensionSet.gitHubFlavored,
+    text
+        .replaceAll('&', '&amp;')
+        .replaceAllMapped(
+          // Replace HTML tags
+          RegExp(r'<([^>]*)>'),
+          (match) => '&lt;${match.group(1)}&gt;',
+        )
+        .replaceNewlines(),
+    withDefaultInlineSyntaxes: false,
+    encodeHtml: false,
     blockSyntaxes: [
       const FencedCodeBlockSyntax(),
       const TableSyntax(),
@@ -235,6 +246,21 @@ String markdown(
       if (enableLatex) BlockLatexSyntax(),
     ],
     inlineSyntaxes: [
+      EscapeSyntax(),
+      EmailAutolinkSyntax(),
+      AutolinkSyntax(),
+      LineBreakSyntax(),
+      // Parse "**strong**" and "*emphasis*" tags.
+      EmphasisSyntax.asterisk(),
+      // Parse "__strong__" and "_emphasis_" tags.
+      EmphasisSyntax.underscore(),
+      CodeSyntax(),
+      SoftLineBreakSyntax(),
+      // DecodeHtmlSyntax(),
+      LinkSyntax(),
+      ImageSyntax(),
+
+      InlineHtmlSyntax(),
       StrikethroughSyntax(),
       AutolinkExtensionSyntaxFix(),
       StrikethroughSyntax(),
