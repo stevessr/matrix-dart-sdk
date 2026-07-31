@@ -169,39 +169,72 @@ class Thread {
   }
 
   Future<TimelineChunk?> getEventContext(String eventId) async {
-    // TODO: probably find events with relationship
-    final resp = await client.getEventContext(
-      room.id, eventId,
-      limit: Room.defaultHistoryCount,
-      
-      // filter: jsonEncode(StateFilter(lazyLoadMembers: true).toJson()),
-    );
+    // Fetch the event context for a thread by paginating the thread's
+    // `/relations` around `eventId`. We use the `/relations` API (not
+    // `/event_context`) because the ThreadTimeline paginates via
+    // `/relations`; `/event_context` returns `/messages` tokens that are
+    // meaningless to `/relations` and cause the timeline to re-fetch the
+    // same page forever.
+    String? fromToken;
+    String? firstPrevBatch;
+    String? lastNextBatch;
+    final allEvents = <Event>[];
 
-    
+    do {
+      final resp = await client.getRelatingEvents(
+        room.id,
+        rootEvent.eventId,
+        limit: Room.defaultHistoryCount,
+        from: fromToken,
+        dir: Direction.b,
+        recurse: true,
+      );
 
-    final events = [
-      if (resp.eventsAfter != null) ...resp.eventsAfter!.reversed,
-      if (resp.event != null) resp.event!,
-      if (resp.eventsBefore != null) ...resp.eventsBefore!,
-    ].map((e) => Event.fromMatrixEvent(e, room)).where((e) => e.relationshipType == RelationshipTypes.thread && e.relationshipEventId == rootEvent.eventId).toList();
+      firstPrevBatch ??= resp.prevBatch;
+      lastNextBatch = resp.nextBatch;
 
-    // Try again to decrypt encrypted events but don't update the database.
+      final pageEvents = resp.chunk
+          .map((e) => Event.fromMatrixEvent(e, room))
+          .where(
+            (e) =>
+                e.relationshipType == RelationshipTypes.thread &&
+                e.relationshipEventId == rootEvent.eventId,
+          )
+          .toList();
+
+      allEvents.addAll(pageEvents);
+
+      // Stop if we found the target event or there are no more pages.
+      if (pageEvents.any((e) => e.eventId == eventId)) {
+        break;
+      }
+      if (resp.nextBatch == null || resp.nextBatch == fromToken) {
+        break;
+      }
+      fromToken = resp.nextBatch;
+    } while (true);
+
+    // Try to decrypt encrypted events but don't update the database.
     if (room.encrypted && client.encryptionEnabled) {
-      for (var i = 0; i < events.length; i++) {
-        if (events[i].type == EventTypes.Encrypted &&
-            events[i].content['can_request_session'] == true) {
-          events[i] = await client.encryption!.decryptRoomEvent(events[i]);
+      for (var i = 0; i < allEvents.length; i++) {
+        if (allEvents[i].type == EventTypes.Encrypted &&
+            allEvents[i].content['can_request_session'] == true) {
+          allEvents[i] = await client.encryption!.decryptRoomEvent(allEvents[i]);
         }
       }
     }
 
-    final chunk = TimelineChunk(
-      nextBatch: resp.end ?? '',
-      prevBatch: resp.start ?? '',
-      events: events,
+    // Seed the chunk with native /relations tokens.
+    // - nextBatch (resp.nextBatch) is the backward/older continuation token,
+    //   which the ThreadTimeline stores into chunk.prevBatch to page further
+    //   back without overlap.
+    // - prevBatch (resp.prevBatch) is the forward/newer token, stored into
+    //   chunk.nextBatch for requestFuture.
+    return TimelineChunk(
+      events: allEvents,
+      prevBatch: lastNextBatch ?? '',
+      nextBatch: firstPrevBatch ?? '',
     );
-
-    return chunk;
   }
 
   Future<ThreadTimeline> getTimeline({

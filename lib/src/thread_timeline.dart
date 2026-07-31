@@ -412,24 +412,23 @@ class ThreadTimeline extends Timeline {
       } else {
         Logs().i('No more events found in the store. Request from server...');
 
-        if (isFragmentedTimeline) {
-          await getThreadEvents(
-            historyCount: historyCount,
-            direction: direction,
-            filter: filter,
-          );
-        } else {
-          if (thread.prev_batch == null) {
-            Logs().i('No more events to request from server...');
-          } else {
-            await thread.requestHistory(
-              historyCount: historyCount,
-              direction: direction,
-              onHistoryReceived: () {},
-              filter: filter,
-            );
-          }
-        }
+        // Threads always paginate through the `/relations` API using the
+        // chunk's prevBatch/nextBatch tokens (which `getThreadEvents` keeps
+        // in sync and clears when the end of the timeline is reached). The
+        // legacy `thread.prev_batch` path below is unreachable in practice
+        // — `thread.prev_batch` is never populated for threads (it is only
+        // ever assigned inside `Thread.requestHistory`, which is itself
+        // gated on it being non-null), and `Thread.requestHistory` does not
+        // insert its fetched events into the timeline nor update
+        // `chunk.prevBatch`, so falling back to it left `canRequestHistory`
+        // true forever while loading nothing — causing an endless
+        // request/rebuild loop even when the server still had events to
+        // deliver. Always paginate via `getThreadEvents` instead.
+        await getThreadEvents(
+          historyCount: historyCount,
+          direction: direction,
+          filter: filter,
+        );
       }
     } finally {
       isRequestingHistory = false;
