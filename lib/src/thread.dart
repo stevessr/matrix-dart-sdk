@@ -35,15 +35,15 @@ class Thread {
   bool get isUnread => notificationCount > 0;
 
   Map<String, dynamic> toJson() => {
-        ...rootEvent.toJson(),
-        'unsigned': {
-          'm.thread': {
-            'latest_event': lastEvent?.toJson(),
-            'count': count,
-            'current_user_participated': currentUserParticipated,
-          },
-        },
-      };
+    ...rootEvent.toJson(),
+    'unsigned': {
+      'm.thread': {
+        'latest_event': lastEvent?.toJson(),
+        'count': count,
+        'current_user_participated': currentUserParticipated,
+      },
+    },
+  };
 
   factory Thread.fromJson(Map<String, dynamic> json, Client client) {
     final room = client.getRoomById(json['room_id']);
@@ -60,9 +60,7 @@ class Thread {
     }
     if (json['unsigned']?['m.thread']?['latest_event'] != null) {
       lastEvent = Event.fromMatrixEvent(
-        MatrixEvent.fromJson(
-          json['unsigned']?['m.thread']?['latest_event'],
-        ),
+        MatrixEvent.fromJson(json['unsigned']?['m.thread']?['latest_event']),
         room,
       );
     }
@@ -71,14 +69,11 @@ class Thread {
     final thread = Thread(
       room: room,
       client: client,
-      rootEvent: Event.fromMatrixEvent(
-        MatrixEvent.fromJson(json),
-        room,
-      ),
+      rootEvent: Event.fromMatrixEvent(MatrixEvent.fromJson(json), room),
       lastEvent: lastEvent,
       count: json['unsigned']?['m.relations']?['m.thread']?['count'],
-      currentUserParticipated: json['unsigned']?['m.relations']?['m.thread']
-          ?['current_user_participated'],
+      currentUserParticipated:
+          json['unsigned']?['m.relations']?['m.thread']?['current_user_participated'],
       highlightCount: 0,
       notificationCount: 0,
     );
@@ -155,8 +150,9 @@ class Thread {
     }
 
     // Read marker is on the last event so no new messages.
-    if (lastEvent.receipts
-        .any((receipt) => receipt.user.senderId == client.userID!)) {
+    if (lastEvent.receipts.any(
+      (receipt) => receipt.user.senderId == client.userID!,
+    )) {
       return false;
     }
 
@@ -164,7 +160,9 @@ class Thread {
     if (lastEvent.senderId == client.userID) return false;
 
     // Get the timestamp of read marker and compare
-    final readAtMilliseconds = room.receiptState.byThread[rootEvent.eventId]?.latestOwnReceipt?.ts ?? 0;
+    final readAtMilliseconds =
+        room.receiptState.byThread[rootEvent.eventId]?.latestOwnReceipt?.ts ??
+        0;
     return readAtMilliseconds < lastEvent.originServerTs.millisecondsSinceEpoch;
   }
 
@@ -219,7 +217,9 @@ class Thread {
       for (var i = 0; i < allEvents.length; i++) {
         if (allEvents[i].type == EventTypes.Encrypted &&
             allEvents[i].content['can_request_session'] == true) {
-          allEvents[i] = await client.encryption!.decryptRoomEvent(allEvents[i]);
+          allEvents[i] = await client.encryption!.decryptRoomEvent(
+            allEvents[i],
+          );
         }
       }
     }
@@ -251,10 +251,7 @@ class Thread {
     var events = <Event>[];
 
     await client.database.transaction(() async {
-      events = await client.database.getThreadEventList(
-        this,
-        limit: limit,
-      );
+      events = await client.database.getThreadEventList(this, limit: limit);
     });
 
     var chunk = TimelineChunk(events: events);
@@ -408,8 +405,14 @@ class Thread {
 
   Future<void> setLastEvent(Event event) async {
     lastEvent = event;
-    final thread = await client.database.getThread(room.id, rootEvent.eventId, client);
-    Logs().v('Set lastEvent to ${room.id}:${rootEvent.eventId} (${event.senderId})');
+    final thread = await client.database.getThread(
+      room.id,
+      rootEvent.eventId,
+      client,
+    );
+    Logs().v(
+      'Set lastEvent to ${room.id}:${rootEvent.eventId} (${event.senderId})',
+    );
     await client.database.storeThread(
       room.id,
       rootEvent,
@@ -455,7 +458,11 @@ class Thread {
       if (storeInDatabase && direction == Direction.b) {
         this.prev_batch = resp.prevBatch;
         await client.database.setThreadPrevBatch(
-            resp.prevBatch, room.id, rootEvent.eventId, client);
+          resp.prevBatch,
+          room.id,
+          rootEvent.eventId,
+          client,
+        );
       }
     });
 
