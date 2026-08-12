@@ -1816,9 +1816,10 @@ class Client extends MatrixApi {
   /// short, url-safe incident id
   String _newIncidentId() {
     final ts = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
-    final rnd = List<int>.generate(8, (_) => _securityIncidentRng.nextInt(256))
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    final rnd = List<int>.generate(
+      8,
+      (_) => _securityIncidentRng.nextInt(256),
+    ).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     return '$ts-$rnd';
   }
 
@@ -1829,11 +1830,7 @@ class Client extends MatrixApi {
     try {
       await database.storeSecurityIncident(incident);
     } catch (e, s) {
-      Logs().e(
-        '[Security] Failed to persist incident ${incident.id}',
-        e,
-        s,
-      );
+      Logs().e('[Security] Failed to persist incident ${incident.id}', e, s);
     }
     onSecurityIncident.add(incident);
   }
@@ -2484,12 +2481,15 @@ class Client extends MatrixApi {
     }
   }
 
+  Future<void>? _updateUserKeysFuture;
+
   /// Pass a timeout to set how long the server waits before sending an empty response.
   /// (Corresponds to the timeout param on the /sync request.)
   Future<void> _innerSync({Duration? timeout}) async {
     await _retryDelay;
     _retryDelay = Future.delayed(Duration(seconds: syncErrorTimeoutSec));
     if (!isLogged() || _disposed || _aborted) return;
+    await _updateUserKeysFuture;
     try {
       if (_initLock) {
         Logs().d('Running sync while init isn\'t done yet, dropping request');
@@ -2567,7 +2567,9 @@ class Client extends MatrixApi {
       database.deleteOldFiles(
         DateTime.now().subtract(Duration(days: 30)).millisecondsSinceEpoch,
       );
-      await updateUserDeviceKeys();
+      _updateUserKeysFuture = updateUserDeviceKeys().whenComplete(() {
+        _updateUserKeysFuture = null;
+      });
       if (encryptionEnabled) {
         encryption?.onSync();
       }
@@ -3529,8 +3531,10 @@ class Client extends MatrixApi {
                     String? priorCurve;
                     String? priorEd;
                     if (oldPublicKeys.length > curve25519Key.length) {
-                      priorCurve =
-                          oldPublicKeys.substring(0, curve25519Key.length);
+                      priorCurve = oldPublicKeys.substring(
+                        0,
+                        curve25519Key.length,
+                      );
                       priorEd = oldPublicKeys.substring(curve25519Key.length);
                     }
                     await raiseSecurityIncident(
@@ -3554,8 +3558,10 @@ class Client extends MatrixApi {
                     Logs().w(
                       'Already seen ED25519 has been added again. This might be an attack!',
                     );
-                    final priorBundle =
-                        await database.deviceIdSeen(userId, oldDeviceId);
+                    final priorBundle = await database.deviceIdSeen(
+                      userId,
+                      oldDeviceId,
+                    );
                     String? priorCurve;
                     String? priorEd;
                     if (priorBundle != null &&
@@ -3593,8 +3599,10 @@ class Client extends MatrixApi {
                     );
                     // Recover the prior owner's ed25519 by stripping the
                     // known curve25519 prefix from the stored bundle
-                    final priorBundle =
-                        await database.deviceIdSeen(userId, oldDeviceId2);
+                    final priorBundle = await database.deviceIdSeen(
+                      userId,
+                      oldDeviceId2,
+                    );
                     String? priorCurve;
                     String? priorEd;
                     if (priorBundle != null &&
@@ -3671,7 +3679,9 @@ class Client extends MatrixApi {
                   final previous = oldKeys[deviceId]!;
                   userKeys.deviceKeys[deviceId] = previous;
                   _pendingKeyReplacements.putIfAbsent(
-                      userId, () => <String, DeviceKeys>{})[deviceId] = entry;
+                    userId,
+                    () => <String, DeviceKeys>{},
+                  )[deviceId] = entry;
                   final prevCurve = previous.curve25519Key;
                   final prevEd = previous.ed25519Key;
                   await raiseSecurityIncident(
@@ -3723,10 +3733,13 @@ class Client extends MatrixApi {
           }
           for (final crossSigningKeyListEntry in keys.entries) {
             final userId = crossSigningKeyListEntry.key;
-            final userKeys =
-                _userDeviceKeys[userId] ??= DeviceKeysList(userId, this);
-            final oldKeys =
-                Map<String, CrossSigningKey>.from(userKeys.crossSigningKeys);
+            final userKeys = _userDeviceKeys[userId] ??= DeviceKeysList(
+              userId,
+              this,
+            );
+            final oldKeys = Map<String, CrossSigningKey>.from(
+              userKeys.crossSigningKeys,
+            );
 
             // Snapshot the previous key of this same usage before we
             // rebuild `crossSigningKeys`, so we can detect a publicKey
@@ -4704,34 +4717,34 @@ class SecurityIncident {
   /// Returns a copy of this incident with [dismissed] replaced by the given
   /// value. All other fields are preserved.
   SecurityIncident copyWith({bool? dismissed}) => SecurityIncident(
-        id: id,
-        type: type,
-        userId: userId,
-        deviceId: deviceId,
-        conflictingDeviceId: conflictingDeviceId,
-        oldFingerprints: oldFingerprints,
-        newFingerprints: newFingerprints,
-        roomId: roomId,
-        time: time,
-        dismissed: dismissed ?? this.dismissed,
-        senderKey: senderKey,
-        sessionFirstKnownIndex: sessionFirstKnownIndex,
-      );
+    id: id,
+    type: type,
+    userId: userId,
+    deviceId: deviceId,
+    conflictingDeviceId: conflictingDeviceId,
+    oldFingerprints: oldFingerprints,
+    newFingerprints: newFingerprints,
+    roomId: roomId,
+    time: time,
+    dismissed: dismissed ?? this.dismissed,
+    senderKey: senderKey,
+    sessionFirstKnownIndex: sessionFirstKnownIndex,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'type': type.name,
-        'user_id': userId,
-        'device_id': deviceId,
-        'conflicting_device_id': conflictingDeviceId,
-        'old_fingerprints': oldFingerprints,
-        'new_fingerprints': newFingerprints,
-        'room_id': roomId,
-        'time_ms': time.millisecondsSinceEpoch,
-        'dismissed': dismissed,
-        'sender_key': senderKey,
-        'session_first_known_index': sessionFirstKnownIndex,
-      };
+    'id': id,
+    'type': type.name,
+    'user_id': userId,
+    'device_id': deviceId,
+    'conflicting_device_id': conflictingDeviceId,
+    'old_fingerprints': oldFingerprints,
+    'new_fingerprints': newFingerprints,
+    'room_id': roomId,
+    'time_ms': time.millisecondsSinceEpoch,
+    'dismissed': dismissed,
+    'sender_key': senderKey,
+    'session_first_known_index': sessionFirstKnownIndex,
+  };
 
   /// Reconstructs an incident from a map previously produced by [toJson].
   /// Unknown enum values fall back to [SecurityIncidentType.deviceKeyReplay]
@@ -4792,13 +4805,7 @@ class SecurityIncident {
       'SecurityIncident(id=$id, type=$type, user=$userId, device=$deviceId, time=$time)';
 }
 
-enum SyncStatus {
-  waitingForResponse,
-  processing,
-  cleaningUp,
-  finished,
-  error,
-}
+enum SyncStatus { waitingForResponse, processing, cleaningUp, finished, error }
 
 class BadServerLoginTypesException implements Exception {
   final Set<String> serverLoginTypes, supportedLoginTypes;
