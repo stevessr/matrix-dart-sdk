@@ -121,6 +121,37 @@ class DeviceKeysList {
     }
   }
 
+  Map<String, Object?> toJson() => {
+    'user_id': userId,
+    'outdated': outdated,
+    'device_keys': deviceKeys.map((k, v) => MapEntry(k, v.toDbJson())),
+    'cross_signing_keys': crossSigningKeys.map(
+      (k, v) => MapEntry(k, v.toDbJson()),
+    ),
+  };
+
+  factory DeviceKeysList.fromJson(Map<String, Object?> json, Client client) =>
+      DeviceKeysList(
+        json['user_id'] as String,
+        client,
+        outdated: json['outdated'] as bool,
+        deviceKeys: (json['device_keys'] as Map).map(
+          (k, v) => MapEntry(
+            k as String,
+            DeviceKeys.fromDb(Map<String, dynamic>.from(v as Map), client),
+          ),
+        ),
+        crossSigningKeys: (json['cross_signing_keys'] as Map).map(
+          (k, v) => MapEntry(
+            k as String,
+            CrossSigningKey.fromDbJson(
+              Map<String, dynamic>.from(v as Map),
+              client,
+            ),
+          ),
+        ),
+      );
+
   DeviceKeysList.fromDbJson(
     Map<String, dynamic> dbEntry,
     List<Map<String, dynamic>> childEntries,
@@ -151,7 +182,14 @@ class DeviceKeysList {
     }
   }
 
-  DeviceKeysList(this.userId, this.client);
+  DeviceKeysList(
+    this.userId,
+    this.client, {
+    this.outdated = true,
+    Map<String, CrossSigningKey>? crossSigningKeys,
+    Map<String, DeviceKeys>? deviceKeys,
+  }) : crossSigningKeys = crossSigningKeys ?? {},
+       deviceKeys = deviceKeys ?? {};
 }
 
 class SimpleSignableKey extends MatrixSignableKey {
@@ -485,6 +523,15 @@ class CrossSigningKey extends SignableKey {
       identifier = keys.values.first;
     }
   }
+
+  Map<String, Object?> toDbJson() => {
+    'user_id': userId,
+    'public_key': identifier,
+    'content': json.encode(toJson()),
+    'verified': _verified ?? false,
+    'blocked': _blocked ?? false,
+    'tofu': ?_trustOnFirstUseSince?.millisecondsSinceEpoch,
+  };
 }
 
 class DeviceKeys extends SignableKey {
@@ -494,6 +541,7 @@ class DeviceKeys extends SignableKey {
   String? get deviceId => identifier;
   late List<String> algorithms;
   late DateTime lastActive;
+  String lastSentMessage = '';
 
   String? get curve25519Key => keys['curve25519:$deviceId'];
   String? get deviceDisplayName =>
@@ -573,6 +621,7 @@ class DeviceKeys extends SignableKey {
     lastActive = DateTime.fromMillisecondsSinceEpoch(
       dbEntry['last_active'] ?? 0,
     );
+    lastSentMessage = dbEntry['last_sent_message'] as String? ?? '';
   }
 
   DeviceKeys.fromJson(Map<String, dynamic> json, Client client)
@@ -602,4 +651,14 @@ class DeviceKeys extends SignableKey {
     encryption.keyVerificationManager.addRequest(request);
     return request;
   }
+
+  Map<String, Object?> toDbJson() => {
+    'user_id': userId,
+    'device_id': identifier,
+    'content': json.encode(toJson()),
+    'verified': _verified ?? false,
+    'blocked': _blocked ?? false,
+    'last_active': lastActive.millisecondsSinceEpoch,
+    'last_sent_message': lastSentMessage,
+  };
 }
