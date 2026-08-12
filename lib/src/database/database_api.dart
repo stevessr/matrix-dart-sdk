@@ -377,4 +377,11 @@ abstract class DatabaseApi {
     String roomId,
     LatestReceiptState receiptState,
   );
+
+  Future<DeviceKeysList?> getDeviceKeysList(String userId, Client client);
+
+  Future<void> storeDeviceKeysList(
+    String userId,
+    DeviceKeysList deviceKeysList,
+  );
 }
