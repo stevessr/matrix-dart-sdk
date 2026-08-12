@@ -219,6 +219,8 @@ class MentionSyntax extends InlineSyntax {
   }
 }
 
+final gtRegex = RegExp(r'(?<=.)>'); // Do not match ">" at beginning of a line
+
 String markdown(
   String text, {
   Map<String, Map<String, String>> Function()? getEmotePacks,
@@ -229,11 +231,8 @@ String markdown(
   var ret = markdownToHtml(
     text
         .replaceAll('&', '&amp;')
-        .replaceAllMapped(
-          // Replace HTML tags
-          RegExp(r'<([^>]*)>'),
-          (match) => '&lt;${match.group(1)}&gt;',
-        )
+        .replaceAll('<', '&lt;')
+        .replaceAll(gtRegex, '&gt;')
         .replaceNewlines(),
     withDefaultInlineSyntaxes: false,
     encodeHtml: false,
