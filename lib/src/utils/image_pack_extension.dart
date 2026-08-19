@@ -34,7 +34,6 @@ extension ImagePackRoomExtension on Room {
       }
 
       for (final entry in imagePack.images.entries) {
-
         final image = entry.value;
         if (allMxcs.contains(image.url)) {
           continue;

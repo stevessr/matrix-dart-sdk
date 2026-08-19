@@ -74,10 +74,7 @@ class EmoteSyntax extends InlineSyntax {
   final Map<String, Map<String, String>> Function()? getEmotePacks;
   Map<String, Map<String, String>>? emotePacks;
   EmoteSyntax(this.getEmotePacks)
-      : super(
-          ':(?:([$shortcodeCharacters]+)~)?([$shortcodeCharacters]+):',
-        );
-
+    : super(':(?:([$shortcodeCharacters]+)~)?([$shortcodeCharacters]+):');
 
   @override
   bool onMatch(InlineParser parser, Match match) {

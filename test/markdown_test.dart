@@ -121,10 +121,7 @@ void main() {
         markdown(':表情包~狐狸:', getEmotePacks: () => emotePacks),
         '<img data-mx-emoticon="" src="mxc://userfox" alt=":狐狸:" title=":狐狸:" height="24" vertical-align="middle" />',
       );
-      expect(
-        markdown(':不存在:', getEmotePacks: () => emotePacks),
-        ':不存在:',
-      );
+      expect(markdown(':不存在:', getEmotePacks: () => emotePacks), ':不存在:');
       // A colon separated time must not be mistaken for a shortcode.
       expect(
         markdown('10:30 到 11:45', getEmotePacks: () => emotePacks),

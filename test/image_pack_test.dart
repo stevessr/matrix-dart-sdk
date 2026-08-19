@@ -266,6 +266,41 @@ void main() {
       });
     });
 
+    test('non-latin state keys stay separate packs', () async {
+      final chineseRoom = Room(
+        id: '!chinese:fakeServer.notExisting',
+        client: client,
+      );
+      for (final entry in {
+        '表情包': 'mxc://first',
+        '贴纸': 'mxc://second',
+      }.entries) {
+        chineseRoom.setState(
+          Event(
+            type: 'im.ponies.room_emotes',
+            content: {
+              'images': {
+                'fox': {'url': entry.value},
+              },
+            },
+            room: chineseRoom,
+            stateKey: entry.key,
+            senderId: '@fakeuser:fakeServer.notExisting',
+            eventId: '\$fake_${entry.value}:fakeServer.notExisting',
+            originServerTs: DateTime.now(),
+          ),
+        );
+      }
+
+      // `slugify` reduces both state keys to an empty string, so without
+      // keeping the original they would be merged into a single pack.
+      final packs = chineseRoom.getImagePacks();
+      expect(packs.containsKey('表情包'), true);
+      expect(packs.containsKey('贴纸'), true);
+      expect(packs['表情包']?.images['fox']?.url.toString(), 'mxc://first');
+      expect(packs['贴纸']?.images['fox']?.url.toString(), 'mxc://second');
+    });
+
     test('dispose client', () async {
       await client.dispose(closeDatabase: true);
     });
