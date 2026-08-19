@@ -15,8 +15,26 @@ extension ImagePackRoomExtension on Room {
     void addImagePack(BasicEvent? event, {Room? room, String? slug}) {
       if (event == null) return;
       final imagePack = event.parsedImagePackContent;
-      final finalSlug = slugify(slug ?? 'pack');
+
+      final rawSlug = slug ?? 'pack';
+      var finalSlug = slugify(rawSlug);
+      // `slugify` drops every character outside of the latin alphabet, so a
+      // pack named in Chinese - or any other non-latin script - would slugify
+      // to an empty string. All of those packs would then share one slug and
+      // be merged into a single group.
+      if (finalSlug.isEmpty) finalSlug = rawSlug;
+      // Two packs that happen to slugify to the same value are still two
+      // separate packs and must not be merged either.
+      if (packs.containsKey(finalSlug)) {
+        var suffix = 2;
+        while (packs.containsKey('$finalSlug-$suffix')) {
+          suffix++;
+        }
+        finalSlug = '$finalSlug-$suffix';
+      }
+
       for (final entry in imagePack.images.entries) {
+
         final image = entry.value;
         if (allMxcs.contains(image.url)) {
           continue;

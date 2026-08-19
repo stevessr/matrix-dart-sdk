@@ -108,6 +108,29 @@ void main() {
         ':room~invalid:',
       );
     });
+    test('emotes with a non-latin shortcode', () {
+      final emotePacks = {
+        'room': {'狐狸': 'mxc://roomfox'},
+        '表情包': {'狐狸': 'mxc://userfox'},
+      };
+      expect(
+        markdown(':狐狸:', getEmotePacks: () => emotePacks),
+        '<img data-mx-emoticon="" src="mxc://roomfox" alt=":狐狸:" title=":狐狸:" height="24" vertical-align="middle" />',
+      );
+      expect(
+        markdown(':表情包~狐狸:', getEmotePacks: () => emotePacks),
+        '<img data-mx-emoticon="" src="mxc://userfox" alt=":狐狸:" title=":狐狸:" height="24" vertical-align="middle" />',
+      );
+      expect(
+        markdown(':不存在:', getEmotePacks: () => emotePacks),
+        ':不存在:',
+      );
+      // A colon separated time must not be mistaken for a shortcode.
+      expect(
+        markdown('10:30 到 11:45', getEmotePacks: () => emotePacks),
+        '10:30 到 11:45',
+      );
+    });
     test('pills', () {
       expect(
         markdown('Hey @sorunome:sorunome.de!'),

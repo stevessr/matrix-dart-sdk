@@ -63,9 +63,21 @@ class SpoilerSyntax extends DelimiterSyntax {
 }
 
 class EmoteSyntax extends InlineSyntax {
+  /// Characters an emote shortcode may consist of.
+  ///
+  /// Everything from U+00C0 upwards is accepted so that shortcodes can be
+  /// written in Chinese and other non-latin scripts. Expressed as plain code
+  /// unit ranges rather than `\p{L}` because [InlineSyntax] builds its regex
+  /// without the unicode flag.
+  static const shortcodeCharacters = r'-\w\u00c0-\uffff';
+
   final Map<String, Map<String, String>> Function()? getEmotePacks;
   Map<String, Map<String, String>>? emotePacks;
-  EmoteSyntax(this.getEmotePacks) : super(r':(?:([-\w]+)~)?([-\w]+):');
+  EmoteSyntax(this.getEmotePacks)
+      : super(
+          ':(?:([$shortcodeCharacters]+)~)?([$shortcodeCharacters]+):',
+        );
+
 
   @override
   bool onMatch(InlineParser parser, Match match) {
