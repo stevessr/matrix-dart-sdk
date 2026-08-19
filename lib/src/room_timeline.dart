@@ -98,10 +98,12 @@ class RoomTimeline extends Timeline {
         .where((sync) => sync.rooms?.join?[room.id]?.timeline?.limited == true)
         .listen(_removeEventsNotInThisSync);
 
-    sessionIdReceivedSub =
-        room.onSessionKeyReceived.stream.listen(_sessionKeyReceived);
-    cancelSendEventSub =
-        room.client.onCancelSendEvent.stream.listen(_cleanUpCancelledEvent);
+    sessionIdReceivedSub = room.onSessionKeyReceived.stream.listen(
+      _sessionKeyReceived,
+    );
+    cancelSendEventSub = room.client.onCancelSendEvent.stream.listen(
+      _cleanUpCancelledEvent,
+    );
 
     // we want to populate our aggregated events
     for (final e in events) {
@@ -180,8 +182,11 @@ class RoomTimeline extends Timeline {
 
     if (_relationRequests.containsKey(key)) return _relationRequests[key]!;
 
-    final future =
-        _doFetchAggregatedEvents(eventId, relType, eventType: eventType);
+    final future = _doFetchAggregatedEvents(
+      eventId,
+      relType,
+      eventType: eventType,
+    );
     _relationRequests[key] = future;
     try {
       await future;
@@ -224,8 +229,9 @@ class RoomTimeline extends Timeline {
           );
         }
 
-        final newEvents =
-            resp.chunk.map((e) => Event.fromMatrixEvent(e, room)).toList();
+        final newEvents = resp.chunk
+            .map((e) => Event.fromMatrixEvent(e, room))
+            .toList();
 
         // Decrypt if needed
         if (room.encrypted && room.client.encryptionEnabled) {
@@ -278,8 +284,10 @@ class RoomTimeline extends Timeline {
           if (room.getState(EventTypes.RoomMember, event.senderId) != null) {
             continue;
           }
-          final dbUser =
-              await room.client.database.getUser(event.senderId, room);
+          final dbUser = await room.client.database.getUser(
+            event.senderId,
+            room,
+          );
           if (dbUser != null) room.setState(dbUser);
         }
 
@@ -374,8 +382,9 @@ class RoomTimeline extends Timeline {
       }
     }
 
-    final newEvents =
-        resp.chunk.map((e) => Event.fromMatrixEvent(e, room)).toList();
+    final newEvents = resp.chunk
+        .map((e) => Event.fromMatrixEvent(e, room))
+        .toList();
 
     if (!allowNewEvent) {
       if (resp.start == resp.end ||
@@ -509,8 +518,9 @@ class RoomTimeline extends Timeline {
 
   @override
   Future<void> setReadMarker({String? eventId, bool? public}) async {
-    eventId ??=
-        events.firstWhereOrNull((event) => event.status.isSynced)?.eventId;
+    eventId ??= events
+        .firstWhereOrNull((event) => event.status.isSynced)
+        ?.eventId;
     if (eventId == null) return;
     return room.setReadMarker(eventId, mRead: eventId, public: public);
   }
@@ -594,10 +604,12 @@ class RoomTimeline extends Timeline {
           (event.relationshipType == RelationshipTypes.edit ||
               event.relationshipType == RelationshipTypes.reaction ||
               event.relationshipType == RelationshipTypes.reference)) {
-        final parentEventIndex =
-            _findEvent(event_id: event.relationshipEventId);
-        if (events[parentEventIndex].relationshipType ==
-            RelationshipTypes.thread) {
+        final parentEventIndex = _findEvent(
+          event_id: event.relationshipEventId,
+        );
+        if (events.length > parentEventIndex &&
+            events[parentEventIndex].relationshipType ==
+                RelationshipTypes.thread) {
           unawaited(room.handleThreadSync(events[parentEventIndex]));
         }
       }
@@ -639,15 +651,14 @@ class RoomTimeline extends Timeline {
     String? sinceEventId,
     int? limit,
     bool Function(Event)? searchFunc,
-  }) =>
-      startSearch(
-        searchTerm: searchTerm,
-        requestHistoryCount: requestHistoryCount,
-        maxHistoryRequests: maxHistoryRequests,
-        sinceEventId: sinceEventId,
-        limit: limit,
-        searchFunc: searchFunc,
-      ).map((result) => result.$1);
+  }) => startSearch(
+    searchTerm: searchTerm,
+    requestHistoryCount: requestHistoryCount,
+    maxHistoryRequests: maxHistoryRequests,
+    sinceEventId: sinceEventId,
+    limit: limit,
+    searchFunc: searchFunc,
+  ).map((result) => result.$1);
 
   /// Searches [searchTerm] in this timeline. It first searches in the
   /// cache, then in the database and then on the server. The search can
@@ -702,8 +713,10 @@ class RoomTimeline extends Timeline {
     // Search on the server
     prevBatch ??= room.prev_batch;
     if (sinceEventId != null) {
-      prevBatch =
-          (await room.client.getEventContext(room.id, sinceEventId)).end;
+      prevBatch = (await room.client.getEventContext(
+        room.id,
+        sinceEventId,
+      )).end;
     }
     final encryption = room.client.encryption;
     for (var i = 0; i < maxHistoryRequests; i++) {
@@ -754,8 +767,10 @@ class RoomTimeline extends Timeline {
     if (relationshipType == null || relationshipEventId == null) {
       return;
     }
-    final e = (aggregatedEvents[relationshipEventId] ??=
-        <String, Set<Event>>{})[relationshipType] ??= <Event>{};
+    final e =
+        (aggregatedEvents[relationshipEventId] ??=
+                <String, Set<Event>>{})[relationshipType] ??=
+            <Event>{};
     _removeEventFromSet(e, event);
     e.add(event);
     if (onChange != null) {

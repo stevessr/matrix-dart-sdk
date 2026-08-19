@@ -2304,6 +2304,11 @@ class Client extends MatrixApi {
         _updatePushrules();
       });
 
+      // ignore: unawaited_futures
+      database.deleteOldFiles(
+        DateTime.now().subtract(Duration(days: 30)).millisecondsSinceEpoch,
+      );
+
       // ignore: deprecated_member_use_from_same_package
       presences.clear();
       if (waitUntilLoadCompletedLoaded) {
@@ -2563,10 +2568,6 @@ class Client extends MatrixApi {
       if (_disposed || _aborted) return;
       _prevBatch = syncResp.nextBatch;
       onSyncStatus.add(SyncStatusUpdate(SyncStatus.cleaningUp));
-      // ignore: unawaited_futures
-      database.deleteOldFiles(
-        DateTime.now().subtract(Duration(days: 30)).millisecondsSinceEpoch,
-      );
       _updateUserKeysFuture = updateUserDeviceKeys().whenComplete(() {
         _updateUserKeysFuture = null;
       });
