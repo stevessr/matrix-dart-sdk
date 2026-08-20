@@ -20,8 +20,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:collection/collection.dart';
-import 'package:matrix/matrix.dart';
-import 'package:matrix/src/models/timeline_chunk.dart';
+import '../matrix.dart';
+import 'models/timeline_chunk.dart';
 
 /// Represents the main timeline of a room.
 class RoomTimeline extends Timeline {

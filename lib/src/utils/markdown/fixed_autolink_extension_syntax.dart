@@ -2,11 +2,15 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:convert';
+
 import 'package:markdown/markdown.dart';
-import 'package:markdown/src/charcode.dart';
-import 'package:markdown/src/inline_parser.dart';
-import 'package:markdown/src/util.dart';
-import 'package:markdown/src/inline_syntaxes/inline_syntax.dart';
+
+/// Escapes HTML special characters, matching `package:markdown`'s internal
+/// `escapeHtml` (`&`, `<`, `>`, `"`, and `'`).
+String _escapeHtml(String html) => HtmlEscape(
+  const HtmlEscapeMode(escapeApos: true, escapeLtGt: true, escapeQuot: true),
+).convert(html);
 
 /// Matches autolinks like `http://foo.com` and `foo@bar.com`.
 class AutolinkExtensionSyntaxFix extends InlineSyntax {
@@ -43,7 +47,7 @@ class AutolinkExtensionSyntaxFix extends InlineSyntax {
       r'[-_.+a-z0-9]+@(?:[-_a-z0-9]+\.)+[-_a-z0-9]*[a-z0-9]';
 
   AutolinkExtensionSyntaxFix()
-      : super('($_linkPattern)|($_emailPattern)', caseSensitive: false);
+    : super('($_linkPattern)|($_emailPattern)', caseSensitive: false);
 
   @override
   bool tryMatch(InlineParser parser, [int? startMatchPos]) {
@@ -84,13 +88,13 @@ class AutolinkExtensionSyntaxFix extends InlineSyntax {
 
     final isEmailLink = match[2] != null;
     if (isEmailLink) {
-      consumeLength = match.match.length;
+      consumeLength = match[0]!.length;
     } else {
-      consumeLength = _getConsumeLength(match.match);
+      consumeLength = _getConsumeLength(match[0]!);
     }
 
-    var text = match.match.substring(0, consumeLength);
-    text = parser.encodeHtml ? escapeHtml(text) : text;
+    var text = match[0]!.substring(0, consumeLength);
+    text = parser.encodeHtml ? _escapeHtml(text) : text;
 
     var destination = text;
     if (isEmailLink) {
@@ -107,8 +111,7 @@ class AutolinkExtensionSyntaxFix extends InlineSyntax {
       destination = Uri.encodeFull(destination);
     }
 
-    final anchor = Element.text('a', text)
-      ..attributes['href'] = destination;
+    final anchor = Element.text('a', text)..attributes['href'] = destination;
 
     parser
       ..addNode(anchor)
@@ -130,10 +133,10 @@ class AutolinkExtensionSyntaxFix extends InlineSyntax {
       } else {
         var parenCount = 0;
         for (var i = 0; i < text.length; i++) {
-          final char = text.codeUnitAt(i);
-          if (char == $lparen) {
+          final char = text[i];
+          if (char == '(') {
             parenCount++;
-          } else if (char == $rparen) {
+          } else if (char == ')') {
             parenCount--;
           }
         }
@@ -147,7 +150,7 @@ class AutolinkExtensionSyntaxFix extends InlineSyntax {
     else if (text.endsWith(';')) {
       final match = RegExp(r'&[0-9a-z]+;$').firstMatch(text);
       if (match != null) {
-        excludedLength = match.match.length;
+        excludedLength = match[0]!.length;
       }
     }
 

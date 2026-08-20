@@ -5,8 +5,8 @@
 import 'dart:convert';
 
 import 'package:markdown/markdown.dart';
-import 'package:matrix/src/utils/markdown/fixed_autolink_extension_syntax.dart';
-import 'package:matrix/src/utils/matrix_id_string_extension.dart';
+import 'markdown/fixed_autolink_extension_syntax.dart';
+import 'matrix_id_string_extension.dart';
 
 const htmlAttrEscape = HtmlEscape(HtmlEscapeMode.attribute);
 

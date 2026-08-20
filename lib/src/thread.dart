@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:matrix/matrix.dart';
-import 'package:matrix/src/models/timeline_chunk.dart';
+import '../matrix.dart';
+import 'models/timeline_chunk.dart';
 
 class Thread {
   final Room room;
@@ -81,7 +81,7 @@ class Thread {
   }
 
   Future<Event?> refreshLastEvent({
-    timeout = const Duration(seconds: 30),
+    Duration timeout = const Duration(seconds: 30),
   }) async {
     final lastEvent = _refreshingLastEvent ??= _refreshLastEvent();
     _refreshingLastEvent = null;
@@ -91,7 +91,7 @@ class Thread {
   Future<Event?>? _refreshingLastEvent;
 
   Future<Event?> _refreshLastEvent({
-    timeout = const Duration(seconds: 30),
+    Duration timeout = const Duration(seconds: 30),
   }) async {
     if (room.membership != Membership.join) return null;
 
@@ -392,7 +392,7 @@ class Thread {
   }
 
   Future<void> setReadMarker({String? eventId, bool? public}) async {
-    if (eventId == null) return null;
+    if (eventId == null) return;
     return await client.postReceipt(
       room.id,
       (public ?? client.receiptsPublicByDefault)

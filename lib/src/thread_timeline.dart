@@ -1,8 +1,7 @@
 import 'dart:async';
 
-import 'package:matrix/matrix.dart';
-import 'package:matrix/src/models/timeline_chunk.dart';
-import 'package:matrix/src/thread.dart';
+import '../matrix.dart';
+import 'models/timeline_chunk.dart';
 
 class ThreadTimeline extends Timeline {
   final Thread thread;
@@ -165,7 +164,7 @@ class ThreadTimeline extends Timeline {
   /// Paginates through all results and deduplicates via [addAggregatedEvent].
   /// Skips if this relation has already been fetched. Concurrent calls for the
   /// same relation are coalesced into a single request.
-  /// 
+  ///
   @override
   Future<void> fetchAggregatedEvents(
     String eventId,
@@ -178,8 +177,11 @@ class ThreadTimeline extends Timeline {
 
     if (_relationRequests.containsKey(key)) return _relationRequests[key]!;
 
-    final future =
-        _doFetchAggregatedEvents(eventId, relType, eventType: eventType);
+    final future = _doFetchAggregatedEvents(
+      eventId,
+      relType,
+      eventType: eventType,
+    );
     _relationRequests[key] = future;
     try {
       await future;
@@ -198,14 +200,15 @@ class ThreadTimeline extends Timeline {
       do {
         final GetRelatingEventsWithRelTypeResponse resp;
         if (eventType != null) {
-          final r = await thread.room.client.getRelatingEventsWithRelTypeAndEventType(
-            thread.room.id,
-            eventId,
-            relType,
-            eventType,
-            from: nextBatch,
-            limit: 50,
-          );
+          final r = await thread.room.client
+              .getRelatingEventsWithRelTypeAndEventType(
+                thread.room.id,
+                eventId,
+                relType,
+                eventType,
+                from: nextBatch,
+                limit: 50,
+              );
           // Both response types share the same shape
           resp = GetRelatingEventsWithRelTypeResponse(
             chunk: r.chunk,
@@ -222,16 +225,16 @@ class ThreadTimeline extends Timeline {
           );
         }
 
-        final newEvents =
-            resp.chunk.map((e) => Event.fromMatrixEvent(e, thread.room)).toList();
+        final newEvents = resp.chunk
+            .map((e) => Event.fromMatrixEvent(e, thread.room))
+            .toList();
 
         // Decrypt if needed
         if (thread.room.encrypted && thread.room.client.encryptionEnabled) {
           for (var i = 0; i < newEvents.length; i++) {
             if (newEvents[i].type == EventTypes.Encrypted) {
-              newEvents[i] = await thread.room.client.encryption!.decryptRoomEvent(
-                newEvents[i],
-              );
+              newEvents[i] = await thread.room.client.encryption!
+                  .decryptRoomEvent(newEvents[i]);
             }
           }
         }
@@ -277,10 +280,12 @@ class ThreadTimeline extends Timeline {
       Logs().w('We reached the end of the timeline');
     }
 
-    final newNextBatch =
-        direction == Direction.b ? resp.prevBatch : resp.nextBatch;
-    final newPrevBatch =
-        direction == Direction.b ? resp.nextBatch : resp.prevBatch;
+    final newNextBatch = direction == Direction.b
+        ? resp.prevBatch
+        : resp.nextBatch;
+    final newPrevBatch = direction == Direction.b
+        ? resp.nextBatch
+        : resp.prevBatch;
 
     final type = direction == Direction.b
         ? EventUpdateType.history
@@ -302,8 +307,9 @@ class ThreadTimeline extends Timeline {
     //   }
     // }
 
-    final newEvents =
-        resp.chunk.map((e) => Event.fromMatrixEvent(e, thread.room)).toList();
+    final newEvents = resp.chunk
+        .map((e) => Event.fromMatrixEvent(e, thread.room))
+        .toList();
 
     if (!allowNewEvent) {
       if (resp.prevBatch == resp.nextBatch ||
@@ -314,8 +320,10 @@ class ThreadTimeline extends Timeline {
       if (allowNewEvent) {
         Logs().d('We now allow sync update into the timeline.');
         newEvents.addAll(
-          await thread.client.database
-              .getThreadEventList(thread, onlySending: true),
+          await thread.client.database.getThreadEventList(
+            thread,
+            onlySending: true,
+          ),
         );
       }
     }
@@ -389,8 +397,10 @@ class ThreadTimeline extends Timeline {
               null) {
             continue;
           }
-          final dbUser =
-              await thread.client.database.getUser(event.senderId, thread.room);
+          final dbUser = await thread.client.database.getUser(
+            event.senderId,
+            thread.room,
+          );
           if (dbUser != null) thread.room.setState(dbUser);
         }
 
@@ -447,8 +457,10 @@ class ThreadTimeline extends Timeline {
     }
     // Logs().w(
     //     'Adding aggregated event ${event.type} ${event.eventId} to $relationshipEventId ($relationshipType)');
-    final e = (aggregatedEvents[relationshipEventId] ??=
-        <String, Set<Event>>{})[relationshipType] ??= <Event>{};
+    final e =
+        (aggregatedEvents[relationshipEventId] ??=
+                <String, Set<Event>>{})[relationshipType] ??=
+            <Event>{};
     _removeEventFromSet(e, event);
     e.add(event);
     if (onChange != null) {
@@ -534,10 +546,7 @@ class ThreadTimeline extends Timeline {
 
   @override
   Future<void> setReadMarker({String? eventId, bool? public}) {
-    return thread.setReadMarker(
-      eventId: eventId,
-      public: public,
-    );
+    return thread.setReadMarker(eventId: eventId, public: public);
   }
 
   @override

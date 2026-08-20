@@ -3548,8 +3548,8 @@ class Client extends MatrixApi {
                       userId: userId,
                       deviceId: deviceId,
                       oldFingerprints: {
-                        if (priorCurve != null) 'curve25519': priorCurve,
-                        if (priorEd != null) 'ed25519': priorEd,
+                        'curve25519': ?priorCurve,
+                        'ed25519': ?priorEd,
                       },
                       newFingerprints: {
                         'curve25519': curve25519Key,
@@ -3585,8 +3585,8 @@ class Client extends MatrixApi {
                       deviceId: deviceId,
                       conflictingDeviceId: oldDeviceId,
                       oldFingerprints: {
-                        if (priorCurve != null) 'curve25519': priorCurve,
-                        if (priorEd != null) 'ed25519': priorEd,
+                        'curve25519': ?priorCurve,
+                        'ed25519': ?priorEd,
                       },
                       newFingerprints: {
                         'curve25519': curve25519Key,
@@ -3623,8 +3623,8 @@ class Client extends MatrixApi {
                       deviceId: deviceId,
                       conflictingDeviceId: oldDeviceId2,
                       oldFingerprints: {
-                        if (priorCurve != null) 'curve25519': priorCurve,
-                        if (priorEd != null) 'ed25519': priorEd,
+                        'curve25519': ?priorCurve,
+                        'ed25519': ?priorEd,
                       },
                       newFingerprints: {
                         'curve25519': curve25519Key,
@@ -3695,8 +3695,8 @@ class Client extends MatrixApi {
                     userId: userId,
                     deviceId: deviceId,
                     oldFingerprints: {
-                      if (prevCurve != null) 'curve25519': prevCurve,
-                      if (prevEd != null) 'ed25519': prevEd,
+                      'curve25519': ?prevCurve,
+                      'ed25519': ?prevEd,
                     },
                     newFingerprints: {
                       'curve25519': curve25519Key,

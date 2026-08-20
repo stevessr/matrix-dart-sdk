@@ -129,8 +129,10 @@ class Room {
   Future<void> loadThreadsFromServer() async {
     try {
       if (loadedAllThreads) return;
-      final response =
-          await client.getThreadRoots(id, from: getThreadRootsBatch);
+      final response = await client.getThreadRoots(
+        id,
+        from: getThreadRootsBatch,
+      );
 
       for (final threadEvent in response.chunk) {
         final event = Event.fromMatrixEvent(threadEvent, this);
@@ -141,7 +143,8 @@ class Room {
           event,
           thread.lastEvent, // lastEvent
           thread.currentUserParticipated ?? false, // currentUserParticipated
-          0, 0,
+          0,
+          0,
           thread.count ?? 1, // count
           client,
         );
@@ -167,8 +170,11 @@ class Room {
     // Update thread metadata in database
     final root = await getEventById(event.relationshipEventId!);
     if (root == null) return;
-    final thread =
-        await client.database.getThread(id, event.relationshipEventId!, client);
+    final thread = await client.database.getThread(
+      id,
+      event.relationshipEventId!,
+      client,
+    );
     await client.database.storeThread(
       id,
       root,
@@ -177,11 +183,15 @@ class Room {
           (thread?.currentUserParticipated ?? false), // currentUserParticipated
       (thread?.count ?? 0) +
           1, // increment count - should be calculated properly
-      0, 0,
+      0,
+      0,
       client,
     );
-    threads[event.relationshipEventId!] = (await client.database
-        .getThread(id, event.relationshipEventId!, client))!;
+    threads[event.relationshipEventId!] = (await client.database.getThread(
+      id,
+      event.relationshipEventId!,
+      client,
+    ))!;
     //}
   }
 
@@ -819,26 +829,27 @@ class Room {
     };
 
     if (addMentions) {
-      var potentialMentions = message
-          .split('@')
-          .map(
-            (text) => '@${text.split(RegExp(r'\s+')).first}',
-          )
-          .toList()
-        ..removeAt(0);
+      var potentialMentions =
+          message
+              .split('@')
+              .map((text) => '@${text.split(RegExp(r'\s+')).first}')
+              .toList()
+            ..removeAt(0);
 
       final hasRoomMention = potentialMentions.remove('@room');
 
-      potentialMentions = potentialMentions
-          .where((mention) => mention.isValidMatrixId)
-          .map(
-            (mention) =>
-                mention.isValidMatrixIdStrict() ? mention : getMention(mention),
-          )
-          .nonNulls
-          .toSet() // Deduplicate
-          .toList()
-        ..remove(client.userID); // We should never mention ourself.
+      potentialMentions =
+          potentialMentions
+              .where((mention) => mention.isValidMatrixId)
+              .map(
+                (mention) => mention.isValidMatrixIdStrict()
+                    ? mention
+                    : getMention(mention),
+              )
+              .nonNulls
+              .toSet() // Deduplicate
+              .toList()
+            ..remove(client.userID); // We should never mention ourself.
 
       // https://spec.matrix.org/v1.7/client-server-api/#mentioning-the-replied-to-user
       if (inReplyTo != null && replyMention) {
@@ -894,35 +905,31 @@ class Room {
     bool addMentions = true,
     bool replyMention = false,
   }) {
-    final event = <String, dynamic>{
-      'msgtype': msgtype,
-      'body': message,
-    };
+    final event = <String, dynamic>{'msgtype': msgtype, 'body': message};
 
     if (addMentions) {
-      var potentialMentions = message
-          .split('@')
-          .map(
-            (text) => '@${text.split(RegExp(r'\s+')).first}',
-          )
-          .toList()
-        ..removeAt(0);
+      var potentialMentions =
+          message
+              .split('@')
+              .map((text) => '@${text.split(RegExp(r'\s+')).first}')
+              .toList()
+            ..removeAt(0);
 
       final hasRoomMention = potentialMentions.remove('@room');
 
-      potentialMentions = potentialMentions
-          .where((mention) => mention.isValidMatrixId)
-          .map(
-            (mention) => mention,
-          )
-          .nonNulls
-          .toSet() // Deduplicate
-          .toList()
-        ..remove(client.userID); // We should never mention ourself.
+      potentialMentions =
+          potentialMentions
+              .where((mention) => mention.isValidMatrixId)
+              .map((mention) => mention)
+              .nonNulls
+              .toSet() // Deduplicate
+              .toList()
+            ..remove(client.userID); // We should never mention ourself.
 
       // https://spec.matrix.org/v1.7/client-server-api/#mentioning-the-replied-to-user
-      if (inReplyTo != null && replyMention)
+      if (inReplyTo != null && replyMention) {
         potentialMentions.add(inReplyTo.senderId);
+      }
 
       if (hasRoomMention || potentialMentions.isNotEmpty) {
         event['m.mentions'] = {
@@ -2943,9 +2950,7 @@ class Room {
   /// Generates a matrix: URI with appropriate routing info to share the room
   Future<Uri> matrixToInviteLink() async {
     if (canonicalAlias.isNotEmpty) {
-      return Uri.parse(
-        matrixUri(canonicalAlias),
-      );
+      return Uri.parse(matrixUri(canonicalAlias));
     }
     final queryParameters = [];
     final users = await requestParticipants([Membership.join]);
@@ -2993,9 +2998,7 @@ class Room {
       }
       queryString += 'via=${queryParameters[i]}';
     }
-    return Uri.parse(
-      '${matrixUri(id)}$queryString',
-    );
+    return Uri.parse('${matrixUri(id)}$queryString');
   }
 
   /// Remove a child from this space by removing the space child and optionally
