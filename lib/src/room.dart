@@ -9,15 +9,15 @@ import 'dart:math';
 import 'package:async/async.dart';
 import 'package:collection/collection.dart';
 import 'package:html_unescape/html_unescape.dart';
-
-import 'package:matrix/matrix.dart';
-import 'package:matrix/src/models/timeline_chunk.dart';
-import 'package:matrix/src/utils/cached_stream_controller.dart';
-import 'package:matrix/src/utils/file_send_request_credentials.dart';
-import 'package:matrix/src/utils/markdown.dart';
-import 'package:matrix/src/utils/marked_unread.dart';
-import 'package:matrix/src/utils/space_child.dart';
 import 'package:mime/mime.dart';
+
+import '../matrix.dart';
+import 'models/timeline_chunk.dart';
+import 'utils/cached_stream_controller.dart';
+import 'utils/file_send_request_credentials.dart';
+import 'utils/markdown.dart';
+import 'utils/marked_unread.dart';
+import 'utils/space_child.dart';
 
 /// max PDU size for server to accept the event with some buffer incase the server adds unsigned data f.ex age
 /// https://spec.matrix.org/v1.9/client-server-api/#size-limits
@@ -1121,10 +1121,15 @@ class Room {
         );
         if (videoThumbnail != null) {
           final thumbnailMimeType = videoThumbnail.mimeType;
+          // Only append a file extension if the mimetype is actually known,
+          // instead of guessing one:
+          final thumbnailExtension = thumbnailMimeType == null
+              ? null
+              : extensionFromMime(thumbnailMimeType);
           thumbnail = MatrixImageFile(
             bytes: videoThumbnail.bytes,
             name:
-                '${file.name}.thumbnail.${extensionFromMime(thumbnailMimeType ?? '') ?? 'jpg'}',
+                '${file.name}.thumbnail${thumbnailExtension == null ? '' : '.$thumbnailExtension'}',
             mimeType: thumbnailMimeType,
             width: videoThumbnail.width,
             height: videoThumbnail.height,
@@ -2177,13 +2182,10 @@ class Room {
     required bool requestProfile,
   }) async {
     // Is user already in cache?
-
-    // If not in cache, try the database
     var foundUser = getState(EventTypes.RoomMember, mxID)?.asUser(this);
 
-    // If the room is not postloaded, check the database
-    if (partial && foundUser == null) {
-      foundUser = await client.database.getUser(mxID, this);
+    if (partial) {
+      foundUser = await client.database.getUser(mxID, this) ?? foundUser;
     }
 
     // If not in the database, try fetching the member from the server
@@ -2242,7 +2244,8 @@ class Room {
     // Set user in the local state if the state changed.
     // If we set the state unconditionally, we might end up with a client calling this over and over thinking the user changed.
     if (userFromCurrentState == null ||
-        userFromCurrentState.displayName != foundUser.displayName) {
+        userFromCurrentState.displayName != foundUser.displayName ||
+        userFromCurrentState.avatarUrl != foundUser.avatarUrl) {
       setState(foundUser);
       // ignore: deprecated_member_use_from_same_package
       onUpdate.add(id);

@@ -5,7 +5,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:matrix/matrix.dart';
+import '../../matrix.dart';
 
 /// callback taking [CommandArgs] as input and a [StringBuffer] as standard output
 /// optionally returns an event ID as in the [Room.sendEvent] syntax.
@@ -198,10 +198,30 @@ extension CommandsClientExtension on Client {
       if (room == null) {
         throw RoomCommandException();
       }
-      final reaction = args.msg.trim();
+      final parts = args.msg.split(' ');
+      String? reaction = parts.first.trim();
       if (reaction.isEmpty) {
         throw CommandException('You must provide a reaction when using /react');
       }
+      final match = RegExp(r':(?:([-\w]+)~)?([-\w]+):').firstMatch(args.msg);
+      if (match != null) {
+        final emotePacks = room.getImagePacksFlat(ImagePackUsage.emoticon);
+        final pack = match[1];
+        final emote = match[2];
+        String? mxc;
+        if (pack != null) {
+          mxc = emotePacks[pack]?[emote];
+        } else {
+          for (final emotePack in emotePacks.values) {
+            mxc = emotePack[emote];
+            if (mxc != null) break;
+          }
+        }
+        if (mxc != null) {
+          reaction = mxc;
+        }
+      }
+
       return await room.sendReaction(inReplyTo.eventId, reaction);
     });
     addCommand('join', (args, stdout) async {

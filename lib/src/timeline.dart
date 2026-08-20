@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
-import 'package:matrix/matrix.dart';
+
+
+import '../matrix.dart';
 
 /// Abstract base class for all timeline implementations.
 /// Provides common functionality for event management, aggregation, and search.

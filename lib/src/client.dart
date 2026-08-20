@@ -11,24 +11,23 @@ import 'dart:typed_data';
 import 'package:async/async.dart';
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:http/http.dart' as http;
-import 'package:matrix/encryption.dart';
-import 'package:matrix/matrix.dart' hide Result;
-import 'package:matrix/matrix_api_lite/generated/fixed_model.dart';
-import 'package:matrix/msc_extensions/msc_unpublished_custom_refresh_token_lifetime/msc_unpublished_custom_refresh_token_lifetime.dart';
-import 'package:matrix/src/models/timeline_chunk.dart';
-import 'package:matrix/src/utils/cached_stream_controller.dart';
-import 'package:matrix/src/utils/client_init_exception.dart';
-import 'package:matrix/src/utils/multilock.dart';
-import 'package:matrix/src/utils/request_and_cache.dart';
-import 'package:matrix/src/utils/run_benchmarked.dart';
-import 'package:matrix/src/utils/run_in_root.dart';
-import 'package:matrix/src/utils/sync_update_item_count.dart';
-import 'package:matrix/src/utils/try_get_push_rule.dart';
-import 'package:matrix/src/utils/versions_comparator.dart';
-import 'package:meta/meta.dart';
 import 'package:mime/mime.dart';
 import 'package:random_string/random_string.dart';
 import 'package:vodozemac/vodozemac.dart' as vod;
+
+import '../encryption.dart';
+import '../matrix.dart' hide Result;
+import '../matrix_api_lite/generated/fixed_model.dart';
+import '../msc_extensions/msc_unpublished_custom_refresh_token_lifetime/msc_unpublished_custom_refresh_token_lifetime.dart';
+import 'models/timeline_chunk.dart';
+import 'utils/cached_stream_controller.dart';
+import 'utils/client_init_exception.dart';
+import 'utils/multilock.dart';
+import 'utils/request_and_cache.dart';
+import 'utils/run_in_root.dart';
+import 'utils/sync_update_item_count.dart';
+import 'utils/try_get_push_rule.dart';
+import 'utils/versions_comparator.dart';
 
 typedef RoomSorter = int Function(Room a, Room b);
 
@@ -3227,7 +3226,12 @@ class Client extends MatrixApi {
         // Update the room state:
         final stateKey = event.stateKey;
         if (stateKey != null) {
-          if (!room.partial || importantStateEvents.contains(event.type)) {
+          final memberAlreadyInMemory =
+              event.type == EventTypes.RoomMember &&
+              room.getState(EventTypes.RoomMember, stateKey) != null;
+          if (!room.partial ||
+              importantStateEvents.contains(event.type) ||
+              memberAlreadyInMemory) {
             room.setState(event);
           }
 
@@ -4079,13 +4083,28 @@ class Client extends MatrixApi {
     // Don't send this message to blocked devices, and if specified onlyVerified
     // then only send it to verified devices
     if (deviceKeys.isNotEmpty) {
+      final skipped = deviceKeys
+          .where(
+            (deviceKey) =>
+                deviceKey.blocked || (onlyVerified && !deviceKey.verified),
+          )
+          .map((deviceKey) => '${deviceKey.userId}:${deviceKey.deviceId}')
+          .toList();
+      if (skipped.isNotEmpty) {
+        Logs().w(
+          'Not sending $eventType to $skipped, they are blocked or unverified',
+        );
+      }
       deviceKeys.removeWhere(
         (DeviceKeys deviceKeys) =>
             deviceKeys.blocked ||
             (deviceKeys.userId == userID && deviceKeys.deviceId == deviceID) ||
             (onlyVerified && !deviceKeys.verified),
       );
-      if (deviceKeys.isEmpty) return;
+      if (deviceKeys.isEmpty) {
+        Logs().w('Not sending $eventType, no devices are left to send it to');
+        return;
+      }
     }
 
     // So that we can guarantee order of encrypted to_device messages to be preserved we

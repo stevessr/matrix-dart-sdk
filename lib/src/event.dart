@@ -9,12 +9,13 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:html/parser.dart';
 import 'package:http/http.dart' as http;
-import 'package:matrix/matrix.dart';
-import 'package:matrix/src/utils/file_send_request_credentials.dart';
-import 'package:matrix/src/utils/html_to_text.dart';
-import 'package:matrix/src/utils/markdown.dart';
-import 'package:matrix/src/utils/multipart_request_progress.dart';
 import 'package:mime/mime.dart';
+
+import '../matrix.dart';
+import 'utils/file_send_request_credentials.dart';
+import 'utils/html_to_text.dart';
+import 'utils/markdown.dart';
+import 'utils/multipart_request_progress.dart';
 
 abstract class RelationshipTypes {
   static const String edit = 'm.replace';
@@ -420,6 +421,14 @@ class Event extends MatrixEvent {
     room.client.onCancelSendEvent.add(eventId);
   }
 
+  /// The name a thumbnail of the file [filename] is stored under. Only gets a
+  /// file extension if the mimetype of the thumbnail is actually known,
+  /// instead of guessing one.
+  String _thumbnailFileName(String filename) {
+    final extension = extensionFromMime(thumbnailMimetype);
+    return '$filename.thumbnail${extension == null ? '' : '.$extension'}';
+  }
+
   Future<MatrixFile?> _getCachedFile({bool getThumbnail = false}) async {
     if (transactionId == null) return null;
 
@@ -432,7 +441,7 @@ class Event extends MatrixEvent {
       if (thumbnailBytes != null) {
         return MatrixImageFile(
           bytes: thumbnailBytes,
-          name: '$filename.thumbnail.${extensionFromMime(thumbnailMimetype)}',
+          name: _thumbnailFileName(filename),
           mimeType: thumbnailMimetype,
           width: thumbnailInfoMap.tryGet<int>('w'),
           height: thumbnailInfoMap.tryGet<int>('h'),
@@ -927,9 +936,7 @@ class Event extends MatrixEvent {
 
     return MatrixFile(
       bytes: uint8list,
-      name: useThumbnail
-          ? '$filename.thumbnail.${extensionFromMime(thumbnailMimetype)}'
-          : filename,
+      name: useThumbnail ? _thumbnailFileName(filename) : filename,
       mimeType: useThumbnail ? thumbnailMimetype : attachmentMimetype,
     );
   }

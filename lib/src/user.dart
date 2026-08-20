@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:matrix/matrix.dart';
+import '../matrix.dart';
 
 /// Represents a user in the context of a Matrix room, not a global user profile.
 ///
@@ -248,13 +248,21 @@ String _hash(String s) =>
     (s.codeUnits.fold<int>(0, (a, b) => a + b) % _maximumHashLength).toString();
 
 extension FromStrippedStateEventExtension on StrippedStateEvent {
-  User asUser(Room room) => User.fromState(
-    // state key should always be set for member events
-    stateKey: stateKey!,
-    content: content,
-    typeKey: type,
-    senderId: senderId,
-    room: room,
-    originServerTs: null,
-  );
+  User asUser(Room room) {
+    if (this is User) {
+      return this as User;
+    }
+    if (this is Event) {
+      return (this as Event).asUser;
+    }
+    return User.fromState(
+      // state key should always be set for member events
+      stateKey: stateKey!,
+      content: content,
+      typeKey: type,
+      senderId: senderId,
+      room: room,
+      originServerTs: null,
+    );
+  }
 }
