@@ -152,6 +152,21 @@ jobs:
           dart pub get
           dart run webdev build
 
+  dart_wasm_compatible:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: cat .github/workflows/versions.env >> $GITHUB_ENV
+      - uses: dart-lang/setup-dart@a57a6c04cf7d4840e88432aad6281d1e125f0d46
+        with:
+          sdk: ${{ env.dart_version }}
+      - name: Ensure SDK compiles to WebAssembly
+        run: |
+          pushd web_test
+          dart pub get
+          dart compile wasm web/main.dart -o build/web_test.wasm
+
   database_web_tests:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -226,6 +241,7 @@ jobs:
       [
         e2ee_test,
         dart_web_compatible,
+        dart_wasm_compatible,
         database_web_tests,
         pub-dev-dry-run,
       ]
