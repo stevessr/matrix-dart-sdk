@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'package:async/async.dart';
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:http/http.dart' as http;
+import 'package:meta/meta.dart';
 import 'package:mime/mime.dart';
 import 'package:random_string/random_string.dart';
 import 'package:vodozemac/vodozemac.dart' as vod;
