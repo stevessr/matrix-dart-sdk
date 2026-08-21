@@ -50,12 +50,17 @@ class CrossSigning {
     if (!enabled) {
       return false;
     }
-    return (await encryption.ssss.getCached(
-              EventTypes.CrossSigningSelfSigning,
-            )) !=
-            null &&
-        (await encryption.ssss.getCached(EventTypes.CrossSigningUserSigning)) !=
-            null;
+    final selfSigningKey = await encryption.ssss.getCached(
+      EventTypes.CrossSigningSelfSigning,
+    );
+    if (selfSigningKey == null) {
+      return false;
+    }
+
+    final userSigningKey = await encryption.ssss.getCached(
+      EventTypes.CrossSigningUserSigning,
+    );
+    return userSigningKey != null;
   }
 
   Future<void> wipe() async {
