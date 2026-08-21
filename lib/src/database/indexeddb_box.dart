@@ -423,9 +423,13 @@ class Box<V> {
     if (value == null) return null;
     switch (V) {
       case const (List<dynamic>):
-        return List.unmodifiable(value as List) as V;
+        return List.unmodifiable(_deepConvert(value) as List) as V;
       case const (Map<dynamic, dynamic>):
-        return Map.unmodifiable(value as Map) as V;
+      case const (Map<String, dynamic>):
+        return Map<String, dynamic>.unmodifiable(
+              _deepConvert(value) as Map<String, dynamic>,
+            )
+            as V;
       case const (int):
         // Workaround that [JSAny.dartify] on wasm could turn an int into double
         if (value is double) return value.round() as V;
@@ -436,5 +440,32 @@ class Box<V> {
       default:
         return value as V;
     }
+  }
+
+  /// Recursively converts values from JS interop to proper Dart types.
+  ///
+  /// dart2wasm represents all JS numbers as `double` (wasm has no native
+  /// 64-bit int), so values that were originally `int` come back as `double`.
+  /// This walks the structure and converts whole-number doubles back to int,
+  /// and ensures map keys are `String` so casts to `Map<String, dynamic>` pass.
+  static Object? _deepConvert(Object? value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) {
+      return value == value.truncate() ? value.toInt() : value;
+    }
+    if (value is bool) return value;
+    if (value is String) return value;
+    if (value is Map) {
+      final result = <String, dynamic>{};
+      value.forEach((key, val) {
+        result[key.toString()] = _deepConvert(val);
+      });
+      return result;
+    }
+    if (value is List) {
+      return value.map((e) => _deepConvert(e)).toList();
+    }
+    return value;
   }
 }
