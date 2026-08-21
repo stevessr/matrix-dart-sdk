@@ -1354,11 +1354,13 @@ class Client extends MatrixApi {
   );
 
   Future<bool> authenticatedMediaSupported() async {
-    return (await getVersions()).versions.any(
-          (v) => isVersionGreaterThanOrEqualTo(v, 'v1.11'),
-        ) ||
-        (await getVersions()).unstableFeatures?['org.matrix.msc3916.stable'] ==
-            true;
+    final response = await getVersions();
+    if (response.versions.any(
+      (v) => isVersionGreaterThanOrEqualTo(v, 'v1.11'),
+    )) {
+      return true;
+    }
+    return response.unstableFeatures?['org.matrix.msc3916.stable'] == true;
   }
 
   /// This endpoint allows clients to retrieve the configuration of the content

@@ -224,10 +224,11 @@ class Box<V> {
     /// NOTE: This is a workaround to get the keys as [IDBObjectStore.getAll()]
     /// only returns the values as a list.
     /// And using the [IDBObjectStore.openCursor()] method is not working as expected.
-    final keys = await _getAllKeysFromStore(txn);
-    _quickAccessCachedKeys = keys.toSet();
-
-    final getAllValuesCompleter = Completer();
+    final getAllValuesCompleter = Completer<List>();
+    // Queue both requests while the transaction is still active. IndexedDB
+    // transactions may auto-commit as soon as the first request completes, so
+    // awaiting getAllKeys() before creating getAll() can throw
+    // TransactionInactiveError in browsers.
     final getAllValuesRequest = store.getAll();
     getAllValuesRequest.onerror = (Event event) {
       Logs().e(
@@ -239,13 +240,19 @@ class Box<V> {
       );
     }.toJS;
     getAllValuesRequest.onsuccess = (Event event) {
-      final values = getAllValuesRequest.result.dartify() as List;
-      for (var i = 0; i < values.length; i++) {
-        map[keys[i]] = _fromValue(values[i]) as V;
-      }
-      getAllValuesCompleter.complete();
+      getAllValuesCompleter.complete(
+        getAllValuesRequest.result.dartify() as List,
+      );
     }.toJS;
-    await getAllValuesCompleter.future;
+    final keysFuture = _getAllKeysFromStore(txn);
+    final (keys, values) = await (
+      keysFuture,
+      getAllValuesCompleter.future,
+    ).wait;
+    _quickAccessCachedKeys = keys.toSet();
+    for (var i = 0; i < values.length; i++) {
+      map[keys[i]] = _fromValue(values[i]) as V;
+    }
     return map;
   }
 
