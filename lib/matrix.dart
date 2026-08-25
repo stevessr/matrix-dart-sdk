@@ -31,6 +31,7 @@ export 'src/event_status.dart';
 export 'src/models/login_type.dart';
 export 'src/models/power_level.dart';
 export 'src/models/receipts.dart';
+export 'src/models/timeline_chunk.dart';
 export 'src/presence.dart';
 export 'src/room.dart';
 export 'src/room_timeline.dart';
