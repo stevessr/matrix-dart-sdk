@@ -34,6 +34,30 @@ typedef RoomSorter = int Function(Room a, Room b);
 
 enum LoginState { loggedIn, loggedOut, softLoggedOut }
 
+/// Why [Client.clear] dropped the local session.
+///
+/// `loggedOut` on its own cannot tell a deliberate sign out from one the SDK
+/// decided on, which makes unexpected sign outs hard to trace in the wild.
+enum SessionClearReason {
+  /// The user signed out through [Client.logout].
+  logout,
+
+  /// The session was moved to another device by [Client.exportDump].
+  exportDump,
+
+  /// [Client.init] failed and could not keep the session.
+  initFailed,
+
+  /// The homeserver refused to refresh an expired access token.
+  softLogoutRefreshFailed,
+
+  /// The homeserver rejected the access token and offered no way back.
+  unknownToken,
+
+  /// [Client.clear] was called directly, so only the caller knows why.
+  unspecified,
+}
+
 extension TrailingSlash on Uri {
   Uri stripTrailingSlash() => path.endsWith('/')
       ? replace(path: path.substring(0, path.length - 1))
@@ -811,7 +835,7 @@ class Client extends MatrixApi {
       Logs().e('Logout failed', e, s);
       rethrow;
     } finally {
-      await clear();
+      await clear(reason: SessionClearReason.logout);
     }
   }
 
@@ -826,7 +850,7 @@ class Client extends MatrixApi {
 
     final futures = <Future>[];
     futures.add(super.logoutAll());
-    futures.add(clear());
+    futures.add(clear(reason: SessionClearReason.logout));
     await Future.wait(futures).catchError((e, s) {
       Logs().e('Logout all failed', e, s);
       throw e;
@@ -1663,7 +1687,7 @@ class Client extends MatrixApi {
 
     final export = await database.exportDump();
 
-    await clear();
+    await clear(reason: SessionClearReason.exportDump);
     return export;
   }
 
@@ -1792,6 +1816,11 @@ class Client extends MatrixApi {
 
   /// Called when the login state e.g. user gets logged out.
   final CachedStreamController<LoginState> onLoginStateChanged =
+      CachedStreamController();
+
+  /// Called just before [onLoginStateChanged] reports [LoginState.loggedOut]
+  /// because the local session was dropped, so listeners can tell why.
+  final CachedStreamController<SessionClearReason> onSessionCleared =
       CachedStreamController();
 
   /// Called when the local cache is reset
@@ -2350,7 +2379,7 @@ class Client extends MatrixApi {
         deviceName: deviceName,
         olmAccount: olmAccount,
       );
-      await clear();
+      await clear(reason: SessionClearReason.initFailed);
       throw clientInitException;
     } finally {
       _initLock = false;
@@ -2363,7 +2392,10 @@ class Client extends MatrixApi {
   }
 
   /// Resets all settings and stops the synchronisation.
-  Future<void> clear() async {
+  Future<void> clear({
+    SessionClearReason reason = SessionClearReason.unspecified,
+  }) async {
+    Logs().i('Clearing the session because of $reason');
     Logs().outputEvents.clear();
     DatabaseApi? legacyDatabase;
     if (legacyDatabaseBuilder != null) {
@@ -2390,6 +2422,7 @@ class Client extends MatrixApi {
     _eventsPendingDecryption.clear();
     await encryption?.dispose();
     _encryption = null;
+    onSessionCleared.add(reason);
     onLoginStateChanged.add(LoginState.loggedOut);
   }
 
@@ -2460,7 +2493,7 @@ class Client extends MatrixApi {
           'Unable to refresh session after soft logout. Clearing session...',
           e,
         );
-        await clear();
+        await clear(reason: SessionClearReason.softLogoutRefreshFailed);
         rethrow;
       } catch (e, s) {
         Logs().e(
@@ -2601,8 +2634,12 @@ class Client extends MatrixApi {
           Logs().w('The user has been logged out! Try to refresh token...', e);
           await _handleSoftLogout();
         } else {
-          Logs().w('The user has been logged out!', e);
-          await clear();
+          Logs().w(
+            'The user has been logged out! No refresh token and the server did '
+            'not offer a soft logout, so the session cannot be recovered.',
+            e,
+          );
+          await clear(reason: SessionClearReason.unknownToken);
         }
       }
     } on SyncConnectionException catch (e, s) {
