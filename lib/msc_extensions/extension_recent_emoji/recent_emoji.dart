@@ -7,8 +7,7 @@ library;
 
 import '../../matrix.dart';
 
-const _unstableRecentEmojiEventType =
-    'io.github.johennes.msc4356.recent_emoji';
+const _unstableRecentEmojiEventType = 'io.github.johennes.msc4356.recent_emoji';
 const _legacyElementRecentEmojiEventType = 'io.element.recent_emoji';
 const _maxRecentEmojiCount = 9007199254740991; // 2^53 - 1
 const _maxRecentEmojis = 100;
