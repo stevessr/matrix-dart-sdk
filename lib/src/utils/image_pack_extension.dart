@@ -7,10 +7,22 @@ import 'package:slugify/slugify.dart';
 import '../../matrix_api_lite.dart';
 import '../room.dart';
 
+const _legacyRoomImagePackEventType = 'im.ponies.room_emotes';
+const _legacyUserImagePackEventType = 'im.ponies.user_emotes';
+const _legacyImagePackRoomsEventType = 'im.ponies.emote_rooms';
+const _maxCanonicalSpaceDepth = 16;
+
 extension ImagePackRoomExtension on Room {
-  /// Get all the active image packs for the specified [usage], mapped by their slug
+  /// Get all active image packs for the specified [usage], mapped by a stable
+  /// display slug.
+  ///
+  /// Stable MSC2545 sources are loaded in specification priority order:
+  /// globally-enabled packs, packs in this room, then packs in the canonical
+  /// space hierarchy. Historical `im.ponies.*` events remain readable for
+  /// backwards compatibility and are placed alongside the equivalent stable
+  /// source without overriding stable data.
   Map<String, ImagePackContent> getImagePacks([ImagePackUsage? usage]) {
-    final allMxcs = <Uri>{}; // used for easy deduplication
+    final allMxcs = <Uri>{};
     final packs = <String, ImagePackContent>{};
 
     void addImagePack(BasicEvent? event, {Room? room, String? slug}) {
@@ -21,11 +33,10 @@ extension ImagePackRoomExtension on Room {
       var finalSlug = slugify(rawSlug);
       // `slugify` drops every character outside of the latin alphabet, so a
       // pack named in Chinese - or any other non-latin script - would slugify
-      // to an empty string. All of those packs would then share one slug and
-      // be merged into a single group.
+      // to an empty string. Keep the original in that case.
       if (finalSlug.isEmpty) finalSlug = rawSlug;
-      // Two packs that happen to slugify to the same value are still two
-      // separate packs and must not be merged either.
+      // Different packs may still slugify to the same value. Keep them
+      // distinct instead of silently merging them.
       if (packs.containsKey(finalSlug)) {
         var suffix = 2;
         while (packs.containsKey('$finalSlug-$suffix')) {
@@ -36,15 +47,17 @@ extension ImagePackRoomExtension on Room {
 
       for (final entry in imagePack.images.entries) {
         final image = entry.value;
-        if (allMxcs.contains(image.url)) {
-          continue;
-        }
+        if (allMxcs.contains(image.url)) continue;
+
+        // Image-level usage existed in the historical proposal and is kept for
+        // compatibility. Stable MSC2545 defines usage at pack level.
         final imageUsage = image.usage ?? imagePack.pack.usage;
         if (usage != null &&
             imageUsage != null &&
             !imageUsage.contains(usage)) {
           continue;
         }
+
         packs
                 .putIfAbsent(
                   finalSlug,
@@ -62,48 +75,109 @@ extension ImagePackRoomExtension on Room {
       }
     }
 
-    // first we add the user image pack
-    addImagePack(client.accountData['im.ponies.user_emotes'], slug: 'user');
-    // next we add all the external image packs
-    final packRooms = client.accountData['im.ponies.emote_rooms'];
-    final rooms = packRooms?.content.tryGetMap<String, Object?>('rooms');
-    if (packRooms != null && rooms != null) {
+    void addReferencedPacks(BasicEvent? references, {required bool stable}) {
+      final rooms = references?.content.tryGetMap<String, Object?>('rooms');
+      if (rooms == null) return;
+
       for (final roomEntry in rooms.entries) {
-        final roomId = roomEntry.key;
-        final room = client.getRoomById(roomId);
-        final roomEntryValue = roomEntry.value;
-        if (room != null && roomEntryValue is Map<String, Object?>) {
-          for (final stateKeyEntry in roomEntryValue.entries) {
-            final stateKey = stateKeyEntry.key;
-            final fallbackSlug =
-                '${room.getLocalizedDisplayname()}-${stateKey.isNotEmpty ? '$stateKey-' : ''}${room.id}';
-            addImagePack(
-              room.getState('im.ponies.room_emotes', stateKey),
-              room: room,
-              slug: fallbackSlug,
-            );
-          }
+        final packRoom = client.getRoomById(roomEntry.key);
+        final referencedStateKeys = roomEntry.value;
+        if (packRoom == null || referencedStateKeys is! Map<String, Object?>) {
+          continue;
+        }
+
+        for (final stateKey in referencedStateKeys.keys) {
+          final stableEvent = packRoom.getState(EventTypes.RoomImagePack, stateKey);
+          final legacyEvent = packRoom.getState(
+            _legacyRoomImagePackEventType,
+            stateKey,
+          );
+          final event = stable
+              ? stableEvent ?? legacyEvent
+              : legacyEvent ?? stableEvent;
+          final fallbackSlug =
+              '${packRoom.getLocalizedDisplayname()}-${stateKey.isNotEmpty ? '$stateKey-' : ''}${packRoom.id}';
+          addImagePack(event, room: packRoom, slug: fallbackSlug);
         }
       }
     }
-    // finally we add all of this rooms state
-    final allRoomEmotes = states['im.ponies.room_emotes'];
-    if (allRoomEmotes != null) {
-      for (final entry in allRoomEmotes.entries) {
+
+    void addRoomPacks(Room sourceRoom, String eventType) {
+      final roomPacks = sourceRoom.states[eventType];
+      if (roomPacks == null) return;
+      for (final entry in roomPacks.entries) {
         addImagePack(
           entry.value,
-          room: this,
-          slug: (entry.value.stateKey?.isNotEmpty == true)
+          room: sourceRoom,
+          slug: entry.value.stateKey?.isNotEmpty == true
               ? entry.value.stateKey
-              : 'room',
+              : sourceRoom.id == id
+              ? 'room'
+              : sourceRoom.getLocalizedDisplayname(),
         );
       }
     }
+
+    Iterable<Room> canonicalSpaces() sync* {
+      var current = this;
+      final visited = <String>{id};
+
+      for (var depth = 0; depth < _maxCanonicalSpaceDepth; depth++) {
+        final parents = current.states[EventTypes.SpaceParent];
+        if (parents == null) return;
+
+        Room? canonicalParent;
+        for (final entry in parents.entries) {
+          if (entry.value.content.tryGet<bool>('canonical') != true) continue;
+          final candidate = client.getRoomById(entry.key);
+          if (candidate == null ||
+              candidate.membership != Membership.join ||
+              !candidate.isSpace ||
+              visited.contains(candidate.id)) {
+            continue;
+          }
+          canonicalParent = candidate;
+          break;
+        }
+
+        if (canonicalParent == null) return;
+        visited.add(canonicalParent.id);
+        yield canonicalParent;
+        current = canonicalParent;
+      }
+    }
+
+    // Stable globally-enabled room packs have the highest priority.
+    addReferencedPacks(
+      client.accountData[EventTypes.ImagePackRooms],
+      stable: true,
+    );
+
+    // Keep Element/MSC2545-era account data readable during migration. The
+    // historical direct user pack has no stable equivalent, so it remains as
+    // an additional user-scoped source.
+    addImagePack(client.accountData[_legacyUserImagePackEventType], slug: 'user');
+    addReferencedPacks(
+      client.accountData[_legacyImagePackRoomsEventType],
+      stable: false,
+    );
+
+    // Packs in the current room come next. Stable state wins deduplication.
+    addRoomPacks(this, EventTypes.RoomImagePack);
+    addRoomPacks(this, _legacyRoomImagePackEventType);
+
+    // Finally surface packs from the room's canonical space hierarchy when
+    // the user is also joined to those spaces, as required by stable MSC2545.
+    for (final space in canonicalSpaces()) {
+      addRoomPacks(space, EventTypes.RoomImagePack);
+      addRoomPacks(space, _legacyRoomImagePackEventType);
+    }
+
     return packs;
   }
 
-  /// Get a flat view of all the image packs of a specified [usage], that is a map of all
-  /// slugs to a map of the image code to their mxc url
+  /// Get a flat view of all image packs of a specified [usage], mapping pack
+  /// slugs to shortcode -> MXC URI.
   Map<String, Map<String, String>> getImagePacksFlat([ImagePackUsage? usage]) =>
       getImagePacks(usage).map(
         (k, v) =>
