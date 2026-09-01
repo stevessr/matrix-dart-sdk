@@ -77,7 +77,7 @@ void main() {
       final packs = room.getImagePacks(ImagePackUsage.emoticon);
       expect(
         packs['local']?.images['local_wave']?.url.toString(),
-        'mxc://fakeServer.notExisting/local-wave',
+        'mxc://fakeserver.notexisting/local-wave',
       );
     });
 
@@ -104,9 +104,7 @@ void main() {
         'type': EventTypes.ImagePackRooms,
         'content': {
           'rooms': {
-            globalPackRoom.id: {
-              'global': <String, Object?>{},
-            },
+            globalPackRoom.id: {'global': <String, Object?>{}},
           },
         },
       });
@@ -117,7 +115,7 @@ void main() {
       );
       expect(
         globalEntry.value.images['global_party']?.url.toString(),
-        'mxc://fakeServer.notExisting/global-party',
+        'mxc://fakeserver.notexisting/global-party',
       );
       expect(
         packs.keys.toList().indexOf(globalEntry.key),
@@ -133,9 +131,7 @@ void main() {
           stateKey: 'space-pack',
           content: {
             'images': {
-              'space_cat': {
-                'url': 'mxc://fakeServer.notExisting/space-cat',
-              },
+              'space_cat': {'url': 'mxc://fakeServer.notExisting/space-cat'},
             },
             'pack': {
               'display_name': 'Space pack',
@@ -162,7 +158,7 @@ void main() {
       );
       expect(
         spaceEntry.images['space_cat']?.url.toString(),
-        'mxc://fakeServer.notExisting/space-cat',
+        'mxc://fakeserver.notexisting/space-cat',
       );
     });
   });
