@@ -87,7 +87,10 @@ extension ImagePackRoomExtension on Room {
         }
 
         for (final stateKey in referencedStateKeys.keys) {
-          final stableEvent = packRoom.getState(EventTypes.RoomImagePack, stateKey);
+          final stableEvent = packRoom.getState(
+            EventTypes.RoomImagePack,
+            stateKey,
+          );
           final legacyEvent = packRoom.getState(
             _legacyRoomImagePackEventType,
             stateKey,
@@ -156,7 +159,10 @@ extension ImagePackRoomExtension on Room {
     // Keep Element/MSC2545-era account data readable during migration. The
     // historical direct user pack has no stable equivalent, so it remains as
     // an additional user-scoped source.
-    addImagePack(client.accountData[_legacyUserImagePackEventType], slug: 'user');
+    addImagePack(
+      client.accountData[_legacyUserImagePackEventType],
+      slug: 'user',
+    );
     addReferencedPacks(
       client.accountData[_legacyImagePackRoomsEventType],
       stable: false,
