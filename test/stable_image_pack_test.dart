@@ -161,5 +161,39 @@ void main() {
         'mxc://fakeserver.notexisting/space-cat',
       );
     });
+
+    test('treats an empty stable usage array as all usages', () {
+      room.setState(
+        stateEvent(
+          room: room,
+          type: EventTypes.RoomImagePack,
+          stateKey: 'empty-usage',
+          content: {
+            'images': {
+              'both': {'url': 'mxc://fakeServer.notExisting/both'},
+            },
+            'pack': {
+              'display_name': 'Both',
+              'usage': <String>[],
+            },
+          },
+        ),
+      );
+
+      expect(
+        room
+            .getImagePacks(ImagePackUsage.emoticon)
+            .values
+            .any((pack) => pack.images.containsKey('both')),
+        isTrue,
+      );
+      expect(
+        room
+            .getImagePacks(ImagePackUsage.sticker)
+            .values
+            .any((pack) => pack.images.containsKey('both')),
+        isTrue,
+      );
+    });
   });
 }

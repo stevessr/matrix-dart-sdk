@@ -50,11 +50,12 @@ extension ImagePackRoomExtension on Room {
         if (allMxcs.contains(image.url)) continue;
 
         // Image-level usage existed in the historical proposal and is kept for
-        // compatibility. Stable MSC2545 defines usage at pack level.
+        // compatibility. Stable MSC2545 defines usage at pack level. An absent
+        // *or empty* usage array means all usages in the stable specification.
         final imageUsage = image.usage ?? imagePack.pack.usage;
         if (usage != null &&
-            imageUsage != null &&
-            !imageUsage.contains(usage)) {
+            imageUsage?.isNotEmpty == true &&
+            !imageUsage!.contains(usage)) {
           continue;
         }
 
@@ -183,7 +184,7 @@ extension ImagePackRoomExtension on Room {
   }
 
   /// Get a flat view of all image packs of a specified [usage], mapping pack
-  /// slugs to shortcode -> MXC URI.
+  /// slugs to a map of the image code to their mxc url
   Map<String, Map<String, String>> getImagePacksFlat([ImagePackUsage? usage]) =>
       getImagePacks(usage).map(
         (k, v) =>
