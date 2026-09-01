@@ -21,6 +21,7 @@ abstract class EventTypes {
   static const String RoomTopic = 'm.room.topic';
   static const String RoomAvatar = 'm.room.avatar';
   static const String RoomTombstone = 'm.room.tombstone';
+  static const String RoomImagePack = 'm.room.image_pack';
   static const String GuestAccess = 'm.room.guest_access';
   static const String HistoryVisibility = 'm.room.history_visibility';
   static const String Encryption = 'm.room.encryption';
@@ -75,6 +76,8 @@ abstract class EventTypes {
   static const String MegolmBackup = 'm.megolm_backup.v1';
   static const String SecretStorageDefaultKey = 'm.secret_storage.default_key';
   static const String PushRules = 'm.push_rules';
+  static const String ImagePackRooms = 'm.image_pack.rooms';
+  static const String RecentEmoji = 'm.recent_emoji';
 
   static String secretStorageKey(String keyId) => 'm.secret_storage.key.$keyId';
 
