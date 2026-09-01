@@ -48,6 +48,7 @@ export 'src/utils/event_localizations.dart';
 export 'src/utils/event_update.dart';
 export 'src/utils/http_timeout.dart';
 export 'src/utils/image_pack_extension.dart';
+export 'src/utils/markdown.dart';
 export 'src/utils/matrix_default_localizations.dart';
 export 'src/utils/matrix_file.dart';
 export 'src/utils/matrix_id_string_extension.dart';
