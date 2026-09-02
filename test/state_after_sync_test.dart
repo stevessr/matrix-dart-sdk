@@ -49,14 +49,14 @@ void main() {
   test('state_after wins over timeline state events', () async {
     final client = await getClient();
     await client.abortSync();
-    final room = client.getRoomById('!726s6s6q:example.com')!;
+    const roomId = '!state-after:example.com';
 
     await client.handleSync(
       SyncUpdate.fromJson({
         'next_batch': 'state-after-test',
         'rooms': {
           'join': {
-            room.id: {
+            roomId: {
               'state_after': {
                 'events': [_nameEvent('After timeline', r'$after')],
               },
@@ -69,22 +69,23 @@ void main() {
       }),
     );
 
+    final room = client.getRoomById(roomId)!;
     expect(room.name, 'After timeline');
-    final storedRoom = await client.database.getSingleRoom(client, room.id);
+    final storedRoom = await client.database.getSingleRoom(client, roomId);
     expect(storedRoom?.name, 'After timeline');
   });
 
   test('legacy sync applies timeline state without state_after', () async {
     final client = await getClient();
     await client.abortSync();
-    final room = client.getRoomById('!726s6s6q:example.com')!;
+    const roomId = '!legacy-state:example.com';
 
     await client.handleSync(
       SyncUpdate.fromJson({
         'next_batch': 'legacy-state-test',
         'rooms': {
           'join': {
-            room.id: {
+            roomId: {
               'state': {
                 'events': [_nameEvent('Before timeline', r'$before')],
               },
@@ -97,6 +98,7 @@ void main() {
       }),
     );
 
+    final room = client.getRoomById(roomId)!;
     expect(room.name, 'Timeline wins');
   });
 }
