@@ -24,19 +24,28 @@ extension ImagePackRoomExtension on Room {
     final packs = <String, ImagePackContent>{};
     final seenPackSources = <String>{};
 
-    void addImagePack(BasicEvent? event, {Room? room, String? slug}) {
+    void addImagePack(
+      BasicEvent? event, {
+      Room? room,
+      String? slug,
+      String stateKey = '',
+    }) {
       if (event == null) return;
 
       // A stable room image pack supersedes the historical event with the same
       // room/state key. Track pack identity, rather than media URI identity:
       // MSC2545 permits multiple shortcodes (and multiple packs) to point at
       // the same MXC and those entries must remain independently selectable.
+      //
+      // BasicEvent intentionally has no stateKey because it is also used for
+      // account data. Callers which are iterating room state therefore pass
+      // the state key explicitly instead of down-casting the event here.
       final semanticType = event.type == _legacyRoomImagePackEventType
           ? EventTypes.RoomImagePack
           : event.type;
       final sourceKey = room == null
-          ? 'account\u0000$semanticType\u0000${event.stateKey ?? ''}'
-          : '${room.id}\u0000$semanticType\u0000${event.stateKey ?? ''}';
+          ? 'account\u0000$semanticType\u0000$stateKey'
+          : '${room.id}\u0000$semanticType\u0000$stateKey';
       if (!seenPackSources.add(sourceKey)) return;
 
       final imagePack = event.parsedImagePackContent;
@@ -106,7 +115,12 @@ extension ImagePackRoomExtension on Room {
               packRoom.getState(_legacyRoomImagePackEventType, stateKey);
           final fallbackSlug =
               '${packRoom.getLocalizedDisplayname()}-${stateKey.isNotEmpty ? '$stateKey-' : ''}${packRoom.id}';
-          addImagePack(event, room: packRoom, slug: fallbackSlug);
+          addImagePack(
+            event,
+            room: packRoom,
+            slug: fallbackSlug,
+            stateKey: stateKey,
+          );
         }
       }
     }
@@ -123,6 +137,7 @@ extension ImagePackRoomExtension on Room {
               : sourceRoom.id == id
               ? 'room'
               : sourceRoom.getLocalizedDisplayname(),
+          stateKey: entry.key,
         );
       }
     }
