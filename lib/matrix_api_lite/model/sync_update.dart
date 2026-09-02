@@ -148,6 +148,7 @@ abstract class SyncRoomUpdate {}
 class JoinedRoomUpdate extends SyncRoomUpdate {
   RoomSummary? summary;
   List<MatrixEvent>? state;
+  List<MatrixEvent>? stateAfter;
   TimelineUpdate? timeline;
   List<BasicEvent>? ephemeral;
   List<BasicEvent>? accountData;
@@ -156,6 +157,7 @@ class JoinedRoomUpdate extends SyncRoomUpdate {
   JoinedRoomUpdate({
     this.summary,
     this.state,
+    this.stateAfter,
     this.timeline,
     this.ephemeral,
     this.accountData,
@@ -166,6 +168,10 @@ class JoinedRoomUpdate extends SyncRoomUpdate {
     : summary = json.tryGetFromJson('summary', RoomSummary.fromJson),
       state = json
           .tryGetMap<String, List<Object?>>('state')?['events']
+          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))
+          .toList(),
+      stateAfter = json
+          .tryGetMap<String, List<Object?>>('state_after')?['events']
           ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))
           .toList(),
       timeline = json.tryGetFromJson('timeline', TimelineUpdate.fromJson),
@@ -189,6 +195,11 @@ class JoinedRoomUpdate extends SyncRoomUpdate {
     }
     if (state != null) {
       data['state'] = {'events': state!.map((i) => i.toJson()).toList()};
+    }
+    if (stateAfter != null) {
+      data['state_after'] = {
+        'events': stateAfter!.map((i) => i.toJson()).toList(),
+      };
     }
     if (timeline != null) {
       data['timeline'] = timeline!.toJson();
@@ -256,14 +267,24 @@ class KnockRoomUpdate extends SyncRoomUpdate {
 
 class LeftRoomUpdate extends SyncRoomUpdate {
   List<MatrixEvent>? state;
+  List<MatrixEvent>? stateAfter;
   TimelineUpdate? timeline;
   List<BasicEvent>? accountData;
 
-  LeftRoomUpdate({this.state, this.timeline, this.accountData});
+  LeftRoomUpdate({
+    this.state,
+    this.stateAfter,
+    this.timeline,
+    this.accountData,
+  });
 
   LeftRoomUpdate.fromJson(Map<String, Object?> json)
     : state = json
           .tryGetMap<String, List<Object?>>('state')?['events']
+          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))
+          .toList(),
+      stateAfter = json
+          .tryGetMap<String, List<Object?>>('state_after')?['events']
           ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))
           .toList(),
       timeline = json.tryGetFromJson('timeline', TimelineUpdate.fromJson),
@@ -276,6 +297,11 @@ class LeftRoomUpdate extends SyncRoomUpdate {
     final data = <String, Object?>{};
     if (state != null) {
       data['state'] = {'events': state!.map((i) => i.toJson()).toList()};
+    }
+    if (stateAfter != null) {
+      data['state_after'] = {
+        'events': stateAfter!.map((i) => i.toJson()).toList(),
+      };
     }
     if (timeline != null) {
       data['timeline'] = timeline!.toJson();
