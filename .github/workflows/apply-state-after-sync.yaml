@@ -1,139 +1,61 @@
-name: Apply stable state_after sync support
+name: Apply state-after source patch
 
 on:
   push:
     branches:
       - fix/stable-state-after-sync
 
-permissions:
-  contents: write
-
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v5
         with:
           ref: fix/stable-state-after-sync
-      - name: Apply MSC4222 implementation and tests
+      - name: Apply source patch
         run: |
           python3 <<'PY'
           from pathlib import Path
 
-          sync_path = Path('lib/matrix_api_lite/model/sync_update.dart')
-          s = sync_path.read_text()
-
-          def replace_once(text, old, new, label):
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected 1 match, got {count}')
+          def once(text, old, new, label):
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected 1 match, got {n}')
               return text.replace(old, new, 1)
 
-          # Joined-room state_after model support.
-          s = replace_once(s,
-              '  List<MatrixEvent>? state;\n  TimelineUpdate? timeline;\n',
-              '  List<MatrixEvent>? state;\n  List<MatrixEvent>? stateAfter;\n  TimelineUpdate? timeline;\n',
-              'joined fields')
-          s = replace_once(s,
-              '    this.summary,\n    this.state,\n    this.timeline,\n',
-              '    this.summary,\n    this.state,\n    this.stateAfter,\n    this.timeline,\n',
-              'joined constructor')
-          s = replace_once(s,
-              "      state = json\n          .tryGetMap<String, List<Object?>>('state')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      timeline = json.tryGetFromJson('timeline', TimelineUpdate.fromJson),\n",
-              "      state = json\n          .tryGetMap<String, List<Object?>>('state')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      stateAfter = json\n          .tryGetMap<String, List<Object?>>('state_after')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      timeline = json.tryGetFromJson('timeline', TimelineUpdate.fromJson),\n",
-              'joined fromJson')
-          s = replace_once(s,
-              "    if (state != null) {\n      data['state'] = {'events': state!.map((i) => i.toJson()).toList()};\n    }\n    if (timeline != null) {\n",
-              "    if (state != null) {\n      data['state'] = {'events': state!.map((i) => i.toJson()).toList()};\n    }\n    if (stateAfter != null) {\n      data['state_after'] = {\n        'events': stateAfter!.map((i) => i.toJson()).toList(),\n      };\n    }\n    if (timeline != null) {\n",
-              'joined toJson')
+          p = Path('lib/matrix_api_lite/model/sync_update.dart')
+          s = p.read_text()
+          s = once(s, '  List<MatrixEvent>? state;\n  TimelineUpdate? timeline;\n', '  List<MatrixEvent>? state;\n  List<MatrixEvent>? stateAfter;\n  TimelineUpdate? timeline;\n', 'joined fields')
+          s = once(s, '    this.summary,\n    this.state,\n    this.timeline,\n', '    this.summary,\n    this.state,\n    this.stateAfter,\n    this.timeline,\n', 'joined constructor')
+          s = once(s, "      state = json\n          .tryGetMap<String, List<Object?>>('state')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      timeline = json.tryGetFromJson('timeline', TimelineUpdate.fromJson),\n", "      state = json\n          .tryGetMap<String, List<Object?>>('state')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      stateAfter = json\n          .tryGetMap<String, List<Object?>>('state_after')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      timeline = json.tryGetFromJson('timeline', TimelineUpdate.fromJson),\n", 'joined fromJson')
+          s = once(s, "    if (state != null) {\n      data['state'] = {'events': state!.map((i) => i.toJson()).toList()};\n    }\n    if (timeline != null) {\n", "    if (state != null) {\n      data['state'] = {'events': state!.map((i) => i.toJson()).toList()};\n    }\n    if (stateAfter != null) {\n      data['state_after'] = {'events': stateAfter!.map((i) => i.toJson()).toList()};\n    }\n    if (timeline != null) {\n", 'joined toJson')
+          s = once(s, 'class LeftRoomUpdate extends SyncRoomUpdate {\n  List<MatrixEvent>? state;\n  TimelineUpdate? timeline;\n', 'class LeftRoomUpdate extends SyncRoomUpdate {\n  List<MatrixEvent>? state;\n  List<MatrixEvent>? stateAfter;\n  TimelineUpdate? timeline;\n', 'left fields')
+          s = once(s, '  LeftRoomUpdate({this.state, this.timeline, this.accountData});\n', '  LeftRoomUpdate({this.state, this.stateAfter, this.timeline, this.accountData});\n', 'left constructor')
+          s = once(s, "  LeftRoomUpdate.fromJson(Map<String, Object?> json)\n    : state = json\n          .tryGetMap<String, List<Object?>>('state')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      timeline = json.tryGetFromJson('timeline', TimelineUpdate.fromJson),\n", "  LeftRoomUpdate.fromJson(Map<String, Object?> json)\n    : state = json\n          .tryGetMap<String, List<Object?>>('state')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      stateAfter = json\n          .tryGetMap<String, List<Object?>>('state_after')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      timeline = json.tryGetFromJson('timeline', TimelineUpdate.fromJson),\n", 'left fromJson')
+          s = once(s, "    if (state != null) {\n      data['state'] = {'events': state!.map((i) => i.toJson()).toList()};\n    }\n    if (timeline != null) {\n", "    if (state != null) {\n      data['state'] = {'events': state!.map((i) => i.toJson()).toList()};\n    }\n    if (stateAfter != null) {\n      data['state_after'] = {'events': stateAfter!.map((i) => i.toJson()).toList()};\n    }\n    if (timeline != null) {\n", 'left toJson')
+          p.write_text(s)
 
-          # Left-room state_after model support.
-          s = replace_once(s,
-              'class LeftRoomUpdate extends SyncRoomUpdate {\n  List<MatrixEvent>? state;\n  TimelineUpdate? timeline;\n',
-              'class LeftRoomUpdate extends SyncRoomUpdate {\n  List<MatrixEvent>? state;\n  List<MatrixEvent>? stateAfter;\n  TimelineUpdate? timeline;\n',
-              'left fields')
-          s = replace_once(s,
-              '  LeftRoomUpdate({this.state, this.timeline, this.accountData});\n',
-              '  LeftRoomUpdate({\n    this.state,\n    this.stateAfter,\n    this.timeline,\n    this.accountData,\n  });\n',
-              'left constructor')
-          s = replace_once(s,
-              "  LeftRoomUpdate.fromJson(Map<String, Object?> json)\n    : state = json\n          .tryGetMap<String, List<Object?>>('state')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      timeline = json.tryGetFromJson('timeline', TimelineUpdate.fromJson),\n",
-              "  LeftRoomUpdate.fromJson(Map<String, Object?> json)\n    : state = json\n          .tryGetMap<String, List<Object?>>('state')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      stateAfter = json\n          .tryGetMap<String, List<Object?>>('state_after')?['events']\n          ?.map((i) => MatrixEvent.fromJson(i as Map<String, Object?>))\n          .toList(),\n      timeline = json.tryGetFromJson('timeline', TimelineUpdate.fromJson),\n",
-              'left fromJson')
-          # The second matching state/toJson block belongs to LeftRoomUpdate after the joined replacement above.
-          s = replace_once(s,
-              "    if (state != null) {\n      data['state'] = {'events': state!.map((i) => i.toJson()).toList()};\n    }\n    if (timeline != null) {\n",
-              "    if (state != null) {\n      data['state'] = {'events': state!.map((i) => i.toJson()).toList()};\n    }\n    if (stateAfter != null) {\n      data['state_after'] = {\n        'events': stateAfter!.map((i) => i.toJson()).toList(),\n      };\n    }\n    if (timeline != null) {\n",
-              'left toJson')
-          sync_path.write_text(s)
-
-          client_path = Path('lib/src/client.dart')
-          c = client_path.read_text()
-
-          c = replace_once(c,
-              "    final syncResp = await sync(\n      filter: filter,\n      timeout: _archiveCacheBusterTimeout,\n      setPresence: syncPresence,\n    );\n",
-              "    final syncResp = await sync(\n      filter: filter,\n      timeout: _archiveCacheBusterTimeout,\n      setPresence: syncPresence,\n      useStateAfter: true,\n    );\n",
-              'archive sync request')
-          c = replace_once(c,
-              "          sync(\n            filter: syncFilterId,\n            since: prevBatch,\n            timeout: timeout?.inMilliseconds,\n            setPresence: syncPresence,\n          ).then(Future<SyncUpdate?>.value).catchError((e) {\n",
-              "          sync(\n            filter: syncFilterId,\n            since: prevBatch,\n            timeout: timeout?.inMilliseconds,\n            setPresence: syncPresence,\n            useStateAfter: true,\n          ).then(Future<SyncUpdate?>.value).catchError((e) {\n",
-              'main sync request')
-
-          c = replace_once(c,
-              "  Future<void> _handleRoomEvents(\n    Room room,\n    List<StrippedStateEvent> events,\n    EventUpdateType type, {\n    bool store = true,\n  }) async {\n",
-              "  Future<void> _handleRoomEvents(\n    Room room,\n    List<StrippedStateEvent> events,\n    EventUpdateType type, {\n    bool store = true,\n    bool updateRoomState = true,\n  }) async {\n",
-              'handleRoomEvents signature')
-          c = replace_once(c,
-              '      await _updateRoomsByEventUpdate(room, event, type);\n',
-              '      await _updateRoomsByEventUpdate(\n        room,\n        event,\n        type,\n        updateRoomState: updateRoomState,\n      );\n',
-              'updateRooms call')
-          c = replace_once(c,
-              "  Future<void> _updateRoomsByEventUpdate(\n    Room room,\n    StrippedStateEvent eventUpdate,\n    EventUpdateType type,\n  ) async {\n",
-              "  Future<void> _updateRoomsByEventUpdate(\n    Room room,\n    StrippedStateEvent eventUpdate,\n    EventUpdateType type, {\n    bool updateRoomState = true,\n  }) async {\n",
-              'updateRooms signature')
-          c = replace_once(c,
-              "        // Update the room state:\n        final stateKey = event.stateKey;\n        if (stateKey != null) {\n",
-              "        // With MSC4222 state_after present, timeline state events are\n        // historical timeline entries only. Current room state must be updated\n        // exclusively from state_after.\n        final stateKey = event.stateKey;\n        if (stateKey != null && updateRoomState) {\n",
-              'state mutation guard')
-
-          # Both joined-room processing sites select state_after when present.
+          p = Path('lib/src/client.dart')
+          c = p.read_text()
+          c = once(c, "    final syncResp = await sync(\n      filter: filter,\n      timeout: _archiveCacheBusterTimeout,\n      setPresence: syncPresence,\n    );\n", "    final syncResp = await sync(\n      filter: filter,\n      timeout: _archiveCacheBusterTimeout,\n      setPresence: syncPresence,\n      useStateAfter: true,\n    );\n", 'archive request')
+          c = once(c, "          sync(\n            filter: syncFilterId,\n            since: prevBatch,\n            timeout: timeout?.inMilliseconds,\n            setPresence: syncPresence,\n          ).then(Future<SyncUpdate?>.value).catchError((e) {\n", "          sync(\n            filter: syncFilterId,\n            since: prevBatch,\n            timeout: timeout?.inMilliseconds,\n            setPresence: syncPresence,\n            useStateAfter: true,\n          ).then(Future<SyncUpdate?>.value).catchError((e) {\n", 'main request')
+          c = once(c, "  Future<void> _handleRoomEvents(\n    Room room,\n    List<StrippedStateEvent> events,\n    EventUpdateType type, {\n    bool store = true,\n  }) async {\n", "  Future<void> _handleRoomEvents(\n    Room room,\n    List<StrippedStateEvent> events,\n    EventUpdateType type, {\n    bool store = true,\n    bool updateRoomState = true,\n  }) async {\n", 'handler signature')
+          c = once(c, '      await _updateRoomsByEventUpdate(room, event, type);\n', '      await _updateRoomsByEventUpdate(\n        room,\n        event,\n        type,\n        updateRoomState: updateRoomState,\n      );\n', 'handler call')
+          c = once(c, "  Future<void> _updateRoomsByEventUpdate(\n    Room room,\n    StrippedStateEvent eventUpdate,\n    EventUpdateType type,\n  ) async {\n", "  Future<void> _updateRoomsByEventUpdate(\n    Room room,\n    StrippedStateEvent eventUpdate,\n    EventUpdateType type, {\n    bool updateRoomState = true,\n  }) async {\n", 'updater signature')
+          c = once(c, "        // Update the room state:\n        final stateKey = event.stateKey;\n        if (stateKey != null) {\n", "        // state_after makes timeline state events historical only.\n        final stateKey = event.stateKey;\n        if (stateKey != null && updateRoomState) {\n", 'state guard')
           old = '        final state = syncRoomUpdate.state;\n'
-          count = c.count(old)
-          if count != 2:
-              raise SystemExit(f'joined state selection: expected 2 matches, got {count}')
+          if c.count(old) != 2:
+              raise SystemExit(f'joined state selection: expected 2, got {c.count(old)}')
           c = c.replace(old, '        final stateAfter = syncRoomUpdate.stateAfter;\n        final state = stateAfter ?? syncRoomUpdate.state;\n')
+          c = once(c, '          await _handleRoomEvents(room, timelineEvents, timelineUpdateType);\n', '          await _handleRoomEvents(\n            room,\n            timelineEvents,\n            timelineUpdateType,\n            updateRoomState: stateAfter == null,\n          );\n', 'joined timeline')
+          c = once(c, "          await _handleRoomEvents(\n            room,\n            timelineEvents,\n            timelineUpdateType,\n            store: false,\n          );\n", "          await _handleRoomEvents(\n            room,\n            timelineEvents,\n            timelineUpdateType,\n            store: false,\n            updateRoomState: syncRoomUpdate.stateAfter == null,\n          );\n", 'left timeline')
+          c = once(c, '    final stateEvents = roomUpdate.state;\n', '    final stateEvents = roomUpdate.stateAfter ?? roomUpdate.state;\n', 'archive state')
+          c = once(c, "      await _handleRoomEvents(\n        archivedRoom,\n        timelineEvents.toList(),\n        EventUpdateType.timeline,\n        store: false,\n      );\n", "      await _handleRoomEvents(\n        archivedRoom,\n        timelineEvents.toList(),\n        EventUpdateType.timeline,\n        store: false,\n        updateRoomState: roomUpdate.stateAfter == null,\n      );\n", 'archive timeline')
+          p.write_text(c)
 
-          # Joined timeline processing: suppress state mutation when state_after exists.
-          old = '          await _handleRoomEvents(room, timelineEvents, timelineUpdateType);\n'
-          count = c.count(old)
-          if count != 1:
-              raise SystemExit(f'joined timeline call: expected 1 match, got {count}')
-          c = c.replace(old,
-              '          await _handleRoomEvents(\n            room,\n            timelineEvents,\n            timelineUpdateType,\n            updateRoomState: stateAfter == null,\n          );\n', 1)
-
-          # Left-room active-room timeline processing.
-          old = "          await _handleRoomEvents(\n            room,\n            timelineEvents,\n            timelineUpdateType,\n            store: false,\n          );\n"
-          count = c.count(old)
-          if count != 1:
-              raise SystemExit(f'left timeline call: expected 1 match, got {count}')
-          c = c.replace(old,
-              "          await _handleRoomEvents(\n            room,\n            timelineEvents,\n            timelineUpdateType,\n            store: false,\n            updateRoomState: syncRoomUpdate.stateAfter == null,\n          );\n", 1)
-
-          # Archived left-room snapshots must use state_after and must not let their
-          # timeline overwrite it.
-          c = replace_once(c,
-              '    final stateEvents = roomUpdate.state;\n',
-              '    final stateEvents = roomUpdate.stateAfter ?? roomUpdate.state;\n',
-              'archived state selection')
-          old = "      await _handleRoomEvents(\n        archivedRoom,\n        timelineEvents.toList(),\n        EventUpdateType.timeline,\n        store: false,\n      );\n"
-          c = replace_once(c, old,
-              "      await _handleRoomEvents(\n        archivedRoom,\n        timelineEvents.toList(),\n        EventUpdateType.timeline,\n        store: false,\n        updateRoomState: roomUpdate.stateAfter == null,\n      );\n",
-              'archived timeline call')
-          client_path.write_text(c)
-
-          test_path = Path('test/state_after_sync_test.dart')
-          test_path.write_text(r'''// SPDX-FileCopyrightText: 2026 Famedly GmbH
+          Path('test/state_after_sync_test.dart').write_text(r'''// SPDX-FileCopyrightText: 2026 Famedly GmbH
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -142,7 +64,7 @@ import 'package:test/test.dart';
 
 import 'fake_client.dart';
 
-Map<String, Object?> _roomNameEvent(String name, String eventId) => {
+Map<String, Object?> _nameEvent(String name, String eventId) => {
   'sender': '@alice:example.com',
   'type': EventTypes.RoomName,
   'content': {'name': name},
@@ -152,7 +74,7 @@ Map<String, Object?> _roomNameEvent(String name, String eventId) => {
 };
 
 void main() {
-  test('joined and left sync models preserve state_after presence', () {
+  test('sync models preserve state_after presence including empty', () {
     final update = SyncUpdate.fromJson({
       'next_batch': 'next',
       'rooms': {
@@ -164,88 +86,68 @@ void main() {
         'leave': {
           '!left:example.com': {
             'state_after': {
-              'events': [_roomNameEvent('Left', r'$left')],
+              'events': [_nameEvent('Left', r'$left')],
             },
           },
         },
       },
     });
-
-    final joined = update.rooms!.join!['!joined:example.com']!;
-    final left = update.rooms!.leave!['!left:example.com']!;
-    expect(joined.stateAfter, isNotNull);
-    expect(joined.stateAfter, isEmpty);
-    expect(left.stateAfter, hasLength(1));
-
-    final encoded = update.toJson();
-    final joinedJson =
-        ((encoded['rooms'] as Map<String, Object?>)['join']
-                as Map<String, Object?>)['!joined:example.com']
-            as Map<String, Object?>;
-    expect(joinedJson.containsKey('state_after'), isTrue);
+    expect(update.rooms!.join!['!joined:example.com']!.stateAfter, isEmpty);
+    expect(update.rooms!.leave!['!left:example.com']!.stateAfter, hasLength(1));
+    final json = update.toJson();
+    final rooms = json['rooms'] as Map<String, Object?>;
+    final join = rooms['join'] as Map<String, Object?>;
+    final joined = join['!joined:example.com'] as Map<String, Object?>;
+    expect(joined.containsKey('state_after'), isTrue);
   });
 
-  test('state_after is authoritative over timeline state events', () async {
+  test('state_after wins over timeline state events', () async {
     final client = await getClient();
     await client.abortSync();
     final room = client.getRoomById('!726s6s6q:example.com')!;
-
-    await client.handleSync(
-      SyncUpdate.fromJson({
-        'next_batch': 'state-after-test',
-        'rooms': {
-          'join': {
-            room.id: {
-              'state_after': {
-                'events': [_roomNameEvent('After timeline', r'$after')],
-              },
-              'timeline': {
-                'events': [_roomNameEvent('Inside timeline', r'$timeline')],
-              },
+    await client.handleSync(SyncUpdate.fromJson({
+      'next_batch': 'state-after-test',
+      'rooms': {
+        'join': {
+          room.id: {
+            'state_after': {
+              'events': [_nameEvent('After timeline', r'$after')],
+            },
+            'timeline': {
+              'events': [_nameEvent('Inside timeline', r'$timeline')],
             },
           },
         },
-      }),
-    );
-
+      },
+    }));
     expect(room.name, 'After timeline');
   });
 
-  test('legacy sync still applies timeline state without state_after', () async {
+  test('legacy sync applies timeline state without state_after', () async {
     final client = await getClient();
     await client.abortSync();
     final room = client.getRoomById('!726s6s6q:example.com')!;
-
-    await client.handleSync(
-      SyncUpdate.fromJson({
-        'next_batch': 'legacy-state-test',
-        'rooms': {
-          'join': {
-            room.id: {
-              'state': {
-                'events': [_roomNameEvent('Before timeline', r'$before')],
-              },
-              'timeline': {
-                'events': [_roomNameEvent('Timeline wins', r'$legacyTimeline')],
-              },
+    await client.handleSync(SyncUpdate.fromJson({
+      'next_batch': 'legacy-state-test',
+      'rooms': {
+        'join': {
+          room.id: {
+            'state': {
+              'events': [_nameEvent('Before timeline', r'$before')],
+            },
+            'timeline': {
+              'events': [_nameEvent('Timeline wins', r'$legacyTimeline')],
             },
           },
         },
-      }),
-    );
-
+      },
+    }));
     expect(room.name, 'Timeline wins');
   });
 }
 ''')
           PY
-      - run: cat .github/workflows/versions.env >> "$GITHUB_ENV"
-      - uses: dart-lang/setup-dart@a57a6c04cf7d4840e88432aad6281d1e125f0d46
-        with:
-          sdk: ${{ env.dart_version }}
-      - name: Format patched files
-        run: dart format lib/matrix_api_lite/model/sync_update.dart lib/src/client.dart test/state_after_sync_test.dart
-      - name: Commit implementation and remove patch workflow
+      - name: Commit patched source
         run: |
           rm .github/workflows/apply-state-after-sync.yaml
           git config user.name github-actions[bot]
