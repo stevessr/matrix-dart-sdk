@@ -12,8 +12,11 @@ enum EventUpdateType {
   /// Messages that have been fetched when requesting past history
   history,
 
-  /// The state of an invite
+  /// The stripped state of an invite.
   inviteState,
+
+  /// The stripped state of a knock.
+  knockState,
 
   /// Events that came down timeline, but we only received the keys for it later so we send a second update for them in the decrypted state
   decryptedTimelineQueue,

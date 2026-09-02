@@ -1254,6 +1254,7 @@ class MatrixSdkDatabase extends DatabaseApi with DatabaseFileStorage {
           EventUpdateType.timeline,
           EventUpdateType.state,
           EventUpdateType.inviteState,
+          EventUpdateType.knockState,
         }.contains(type)) {
       if (event.type == EventTypes.RoomMember) {
         await _roomMembersBox.put(

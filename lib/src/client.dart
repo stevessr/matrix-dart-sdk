@@ -2700,6 +2700,10 @@ class Client extends MatrixApi {
       if (invite != null) {
         await _handleRooms(invite, direction: direction);
       }
+      final knock = sync.rooms?.knock;
+      if (knock != null) {
+        await _handleRooms(knock, direction: direction);
+      }
     }
     for (final newPresence in sync.presence ?? <Presence>[]) {
       final cachedPresence = CachedPresence.fromMatrixEvent(newPresence);
@@ -2960,6 +2964,12 @@ class Client extends MatrixApi {
           await _handleRoomEvents(room, state, EventUpdateType.inviteState);
         }
       }
+      if (syncRoomUpdate is KnockRoomUpdate) {
+        final state = syncRoomUpdate.knockState;
+        if (state != null && state.isNotEmpty) {
+          await _handleRoomEvents(room, state, EventUpdateType.knockState);
+        }
+      }
       if (syncRoomUpdate is LeftRoomUpdate && getRoomById(id) == null) {
         Logs().d('Skip store LeftRoomUpdate for unknown room', id);
         continue;
@@ -3181,6 +3191,8 @@ class Client extends MatrixApi {
         ? Membership.leave
         : chatUpdate is InvitedRoomUpdate
         ? Membership.invite
+        : chatUpdate is KnockRoomUpdate
+        ? Membership.knock
         : Membership.join;
 
     final room = found
@@ -3273,6 +3285,7 @@ class Client extends MatrixApi {
 
     switch (type) {
       case EventUpdateType.inviteState:
+      case EventUpdateType.knockState:
         room.setState(eventUpdate);
         break;
       case EventUpdateType.state:
