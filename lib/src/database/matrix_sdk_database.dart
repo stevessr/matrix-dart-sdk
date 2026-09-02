@@ -1139,8 +1139,9 @@ class MatrixSdkDatabase extends DatabaseApi with DatabaseFileStorage {
     String roomId,
     StrippedStateEvent event,
     EventUpdateType type,
-    Client client,
-  ) async {
+    Client client, {
+    bool updateRoomState = true,
+  }) async {
     final tmpRoom =
         client.getRoomById(roomId) ?? Room(id: roomId, client: client);
 
@@ -1246,7 +1247,8 @@ class MatrixSdkDatabase extends DatabaseApi with DatabaseFileStorage {
 
     final stateKey = event.stateKey;
     // Store a common state event
-    if (stateKey != null &&
+    if (updateRoomState &&
+        stateKey != null &&
         // Don't store events as state updates when paginating backwards.
         {
           EventUpdateType.timeline,

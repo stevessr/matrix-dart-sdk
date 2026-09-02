@@ -93,8 +93,9 @@ abstract class DatabaseApi {
     String roomId,
     StrippedStateEvent event,
     EventUpdateType type,
-    Client client,
-  );
+    Client client, {
+    bool updateRoomState = true,
+  });
 
   Future<Event?> getEventById(String eventId, Room room);
 
