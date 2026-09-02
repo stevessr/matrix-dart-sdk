@@ -2700,6 +2700,10 @@ class Client extends MatrixApi {
       if (invite != null) {
         await _handleRooms(invite, direction: direction);
       }
+      final knock = sync.rooms?.knock;
+      if (knock != null) {
+        await _handleRooms(knock, direction: direction);
+      }
     }
     for (final newPresence in sync.presence ?? <Presence>[]) {
       final cachedPresence = CachedPresence.fromMatrixEvent(newPresence);
