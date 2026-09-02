@@ -205,12 +205,15 @@ String matrixEventUri(String roomIdentifier, String eventId) {
   if (roomIdentifier.isEmpty || eventId.isEmpty) return '';
   final roomSigil = roomIdentifier[0];
   final roomIdWithoutSigil = roomIdentifier.substring(1);
-  final encodedRoomId =
-      Uri.encodeComponent(roomIdWithoutSigil).replaceAll('%3A', ':');
-  final eventIdWithoutSigil =
-      eventId.startsWith('\$') ? eventId.substring(1) : eventId;
-  final encodedEventId =
-      Uri.encodeComponent(eventIdWithoutSigil).replaceAll('%3A', ':');
+  final encodedRoomId = Uri.encodeComponent(
+    roomIdWithoutSigil,
+  ).replaceAll('%3A', ':');
+  final eventIdWithoutSigil = eventId.startsWith('\$')
+      ? eventId.substring(1)
+      : eventId;
+  final encodedEventId = Uri.encodeComponent(
+    eventIdWithoutSigil,
+  ).replaceAll('%3A', ':');
   switch (roomSigil) {
     case '#':
       return 'matrix:r/$encodedRoomId/e/$encodedEventId';
