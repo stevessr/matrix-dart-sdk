@@ -1269,6 +1269,7 @@ class Client extends MatrixApi {
       filter: filter,
       timeout: _archiveCacheBusterTimeout,
       setPresence: syncPresence,
+      useStateAfter: true,
     );
     // wrap around and hope there are not more than 30 leaves in 2 minutes :)
     _archiveCacheBusterTimeout = (_archiveCacheBusterTimeout + 1) % 30;
@@ -1330,7 +1331,7 @@ class Client extends MatrixApi {
 
     archivedRoom.prev_batch = update.timeline?.prevBatch;
 
-    final stateEvents = roomUpdate.state;
+    final stateEvents = roomUpdate.stateAfter ?? roomUpdate.state;
     if (stateEvents != null) {
       await _handleRoomEvents(
         archivedRoom,
@@ -1347,6 +1348,7 @@ class Client extends MatrixApi {
         timelineEvents.toList(),
         EventUpdateType.timeline,
         store: false,
+        updateRoomState: roomUpdate.stateAfter == null,
       );
     }
 
@@ -2554,6 +2556,7 @@ class Client extends MatrixApi {
             since: prevBatch,
             timeout: timeout?.inMilliseconds,
             setPresence: syncPresence,
+            useStateAfter: true,
           ).then(Future<SyncUpdate?>.value).catchError((e) {
             if (e is MatrixException) {
               syncError = e;
@@ -2868,7 +2871,8 @@ class Client extends MatrixApi {
 
       /// Handle now all room events and save them in the database
       if (syncRoomUpdate is JoinedRoomUpdate) {
-        final state = syncRoomUpdate.state;
+        final stateAfter = syncRoomUpdate.stateAfter;
+        final state = stateAfter ?? syncRoomUpdate.state;
 
         // If we are receiving states when fetching history we need to check if
         // we are not overwriting a newer state.
@@ -2899,7 +2903,12 @@ class Client extends MatrixApi {
 
         final timelineEvents = syncRoomUpdate.timeline?.events;
         if (timelineEvents != null && timelineEvents.isNotEmpty) {
-          await _handleRoomEvents(room, timelineEvents, timelineUpdateType);
+          await _handleRoomEvents(
+            room,
+            timelineEvents,
+            timelineUpdateType,
+            updateRoomState: stateAfter == null,
+          );
         }
 
         final ephemeral = syncRoomUpdate.ephemeral;
@@ -2925,6 +2934,7 @@ class Client extends MatrixApi {
             timelineEvents,
             timelineUpdateType,
             store: false,
+            updateRoomState: syncRoomUpdate.stateAfter == null,
           );
         }
         final accountData = syncRoomUpdate.accountData;
@@ -2933,7 +2943,7 @@ class Client extends MatrixApi {
             room.roomAccountData[event.type] = event;
           }
         }
-        final state = syncRoomUpdate.state;
+        final state = syncRoomUpdate.stateAfter ?? syncRoomUpdate.state;
         if (state != null && state.isNotEmpty) {
           await _handleRoomEvents(
             room,
@@ -3009,6 +3019,7 @@ class Client extends MatrixApi {
     List<StrippedStateEvent> events,
     EventUpdateType type, {
     bool store = true,
+    bool updateRoomState = true,
   }) async {
     // Calling events can be omitted if they are outdated from the same sync. So
     // we collect them first before we handle them.
@@ -3075,9 +3086,20 @@ class Client extends MatrixApi {
           room.setState(user);
         }
       }
-      await _updateRoomsByEventUpdate(room, event, type);
+      await _updateRoomsByEventUpdate(
+        room,
+        event,
+        type,
+        updateRoomState: updateRoomState,
+      );
       if (store) {
-        await database.storeEventUpdate(room.id, event, type, this);
+        await database.storeEventUpdate(
+          room.id,
+          event,
+          type,
+          this,
+          updateRoomState: updateRoomState,
+        );
       }
       if (event is MatrixEvent && encryptionEnabled) {
         await encryption?.handleEventUpdate(
@@ -3244,8 +3266,9 @@ class Client extends MatrixApi {
   Future<void> _updateRoomsByEventUpdate(
     Room room,
     StrippedStateEvent eventUpdate,
-    EventUpdateType type,
-  ) async {
+    EventUpdateType type, {
+    bool updateRoomState = true,
+  }) async {
     if (type == EventUpdateType.history) return;
 
     switch (type) {
@@ -3263,9 +3286,10 @@ class Client extends MatrixApi {
         }
         final event = Event.fromMatrixEvent(eventUpdate, room);
 
-        // Update the room state:
+        // With MSC4222 state_after present, timeline state events remain
+        // timeline events but must not replace the authoritative current state.
         final stateKey = event.stateKey;
-        if (stateKey != null) {
+        if (stateKey != null && updateRoomState) {
           final memberAlreadyInMemory =
               event.type == EventTypes.RoomMember &&
               room.getState(EventTypes.RoomMember, stateKey) != null;

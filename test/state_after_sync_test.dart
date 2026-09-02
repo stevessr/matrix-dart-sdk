@@ -70,6 +70,8 @@ void main() {
     );
 
     expect(room.name, 'After timeline');
+    final storedRoom = await client.database.getSingleRoom(client, room.id);
+    expect(storedRoom?.name, 'After timeline');
   });
 
   test('legacy sync applies timeline state without state_after', () async {
