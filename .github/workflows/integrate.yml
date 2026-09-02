@@ -18,6 +18,109 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  patch_state_after:
+    if: github.head_ref == 'fix/stable-state-after-sync'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/stable-state-after-sync
+      - name: Wire stable state_after semantics
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          p = Path('lib/src/client.dart')
+          c = p.read_text()
+
+          def once(old, new, label):
+              global c
+              n = c.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected 1 match, got {n}')
+              c = c.replace(old, new, 1)
+
+          once(
+              "    final syncResp = await sync(\n      filter: filter,\n      timeout: _archiveCacheBusterTimeout,\n      setPresence: syncPresence,\n    );\n",
+              "    final syncResp = await sync(\n      filter: filter,\n      timeout: _archiveCacheBusterTimeout,\n      setPresence: syncPresence,\n      useStateAfter: true,\n    );\n",
+              'archive sync request',
+          )
+          once(
+              "          sync(\n            filter: syncFilterId,\n            since: prevBatch,\n            timeout: timeout?.inMilliseconds,\n            setPresence: syncPresence,\n          ).then(Future<SyncUpdate?>.value).catchError((e) {\n",
+              "          sync(\n            filter: syncFilterId,\n            since: prevBatch,\n            timeout: timeout?.inMilliseconds,\n            setPresence: syncPresence,\n            useStateAfter: true,\n          ).then(Future<SyncUpdate?>.value).catchError((e) {\n",
+              'main sync request',
+          )
+          once(
+              "  Future<void> _handleRoomEvents(\n    Room room,\n    List<StrippedStateEvent> events,\n    EventUpdateType type, {\n    bool store = true,\n  }) async {\n",
+              "  Future<void> _handleRoomEvents(\n    Room room,\n    List<StrippedStateEvent> events,\n    EventUpdateType type, {\n    bool store = true,\n    bool updateRoomState = true,\n  }) async {\n",
+              'room event handler signature',
+          )
+          once(
+              '      await _updateRoomsByEventUpdate(room, event, type);\n',
+              '      await _updateRoomsByEventUpdate(\n        room,\n        event,\n        type,\n        updateRoomState: updateRoomState,\n      );\n',
+              'room update call',
+          )
+          once(
+              "  Future<void> _updateRoomsByEventUpdate(\n    Room room,\n    StrippedStateEvent eventUpdate,\n    EventUpdateType type,\n  ) async {\n",
+              "  Future<void> _updateRoomsByEventUpdate(\n    Room room,\n    StrippedStateEvent eventUpdate,\n    EventUpdateType type, {\n    bool updateRoomState = true,\n  }) async {\n",
+              'room updater signature',
+          )
+          once(
+              "        // Update the room state:\n        final stateKey = event.stateKey;\n        if (stateKey != null) {\n",
+              "        // With state_after present, timeline state events remain\n        // timeline entries but must not mutate the current room state.\n        final stateKey = event.stateKey;\n        if (stateKey != null && updateRoomState) {\n",
+              'room state mutation guard',
+          )
+
+          old = '        final state = syncRoomUpdate.state;\n'
+          n = c.count(old)
+          if n != 2:
+              raise SystemExit(f'joined state selection: expected 2 matches, got {n}')
+          c = c.replace(
+              old,
+              '        final stateAfter = syncRoomUpdate.stateAfter;\n'
+              '        final state = stateAfter ?? syncRoomUpdate.state;\n',
+          )
+
+          once(
+              '          await _handleRoomEvents(room, timelineEvents, timelineUpdateType);\n',
+              '          await _handleRoomEvents(\n'
+              '            room,\n'
+              '            timelineEvents,\n'
+              '            timelineUpdateType,\n'
+              '            updateRoomState: stateAfter == null,\n'
+              '          );\n',
+              'joined timeline state suppression',
+          )
+          once(
+              "          await _handleRoomEvents(\n            room,\n            timelineEvents,\n            timelineUpdateType,\n            store: false,\n          );\n",
+              "          await _handleRoomEvents(\n            room,\n            timelineEvents,\n            timelineUpdateType,\n            store: false,\n            updateRoomState: syncRoomUpdate.stateAfter == null,\n          );\n",
+              'left timeline state suppression',
+          )
+          once(
+              '    final stateEvents = roomUpdate.state;\n',
+              '    final stateEvents = roomUpdate.stateAfter ?? roomUpdate.state;\n',
+              'archived state selection',
+          )
+          once(
+              "      await _handleRoomEvents(\n        archivedRoom,\n        timelineEvents.toList(),\n        EventUpdateType.timeline,\n        store: false,\n      );\n",
+              "      await _handleRoomEvents(\n        archivedRoom,\n        timelineEvents.toList(),\n        EventUpdateType.timeline,\n        store: false,\n        updateRoomState: roomUpdate.stateAfter == null,\n      );\n",
+              'archived timeline state suppression',
+          )
+
+          p.write_text(c)
+          PY
+      - name: Commit source and restore workflow
+        run: |
+          git fetch origin Extera
+          git checkout origin/Extera -- .github/workflows/integrate.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add lib/src/client.dart .github/workflows/integrate.yml
+          git commit -m "feat: apply stable state_after sync semantics"
+          git push origin HEAD:fix/stable-state-after-sync
+
   dart:
     permissions:
       contents: read
