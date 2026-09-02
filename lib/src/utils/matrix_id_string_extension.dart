@@ -98,7 +98,15 @@ extension MatrixIdExtension on String {
 
   String? get localpart => isValidMatrixIdStrict() ? _getParts().first : null;
 
-  String? get domain => isValidMatrixIdStrict() ? _getParts().last : null;
+  /// Returns the domain component when the identifier actually has one.
+  ///
+  /// Room version 12 room IDs and modern event IDs are domainless, so their
+  /// opaque localpart must never be mistaken for a server name.
+  String? get domain {
+    if (!isValidMatrixIdStrict()) return null;
+    final parts = _getParts();
+    return parts.length == 2 ? parts[1] : null;
+  }
 
   bool equals(String? other) => toLowerCase() == other?.toLowerCase();
 
