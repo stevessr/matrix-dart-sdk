@@ -195,5 +195,106 @@ void main() {
         isTrue,
       );
     });
+
+    test('keeps multiple shortcodes which point at the same MXC', () {
+      room.setState(
+        stateEvent(
+          room: room,
+          type: EventTypes.RoomImagePack,
+          stateKey: 'aliases',
+          content: {
+            'images': {
+              'wave': {'url': 'mxc://fakeServer.notExisting/shared'},
+              'hello': {'url': 'mxc://fakeServer.notExisting/shared'},
+            },
+          },
+        ),
+      );
+
+      final pack = room
+          .getImagePacks()
+          .values
+          .firstWhere((pack) => pack.images.containsKey('wave'));
+      expect(pack.images.containsKey('wave'), isTrue);
+      expect(pack.images.containsKey('hello'), isTrue);
+    });
+
+    test('keeps separate packs which reuse the same MXC', () {
+      room.setState(
+        stateEvent(
+          room: room,
+          type: EventTypes.RoomImagePack,
+          stateKey: 'shared-a',
+          content: {
+            'images': {
+              'first': {'url': 'mxc://fakeServer.notExisting/reused'},
+            },
+          },
+        ),
+      );
+      room.setState(
+        stateEvent(
+          room: room,
+          type: EventTypes.RoomImagePack,
+          stateKey: 'shared-b',
+          content: {
+            'images': {
+              'second': {'url': 'mxc://fakeServer.notExisting/reused'},
+            },
+          },
+        ),
+      );
+
+      final packs = room.getImagePacks();
+      expect(
+        packs.values.where((pack) => pack.images.containsKey('first')).length,
+        1,
+      );
+      expect(
+        packs.values.where((pack) => pack.images.containsKey('second')).length,
+        1,
+      );
+    });
+
+    test('stable state supersedes an equivalent legacy pack', () {
+      room.setState(
+        stateEvent(
+          room: room,
+          type: 'im.ponies.room_emotes',
+          stateKey: 'upgraded',
+          content: {
+            'images': {
+              'legacy_only': {
+                'url': 'mxc://fakeServer.notExisting/legacy-only',
+              },
+            },
+          },
+        ),
+      );
+      room.setState(
+        stateEvent(
+          room: room,
+          type: EventTypes.RoomImagePack,
+          stateKey: 'upgraded',
+          content: {
+            'images': {
+              'stable_only': {
+                'url': 'mxc://fakeServer.notExisting/stable-only',
+              },
+            },
+          },
+        ),
+      );
+
+      final packs = room.getImagePacks();
+      expect(
+        packs.values.any((pack) => pack.images.containsKey('stable_only')),
+        isTrue,
+      );
+      expect(
+        packs.values.any((pack) => pack.images.containsKey('legacy_only')),
+        isFalse,
+      );
+    });
   });
 }

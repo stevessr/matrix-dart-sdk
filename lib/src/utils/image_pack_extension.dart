@@ -19,14 +19,26 @@ extension ImagePackRoomExtension on Room {
   /// Stable MSC2545 sources are loaded in specification priority order:
   /// globally-enabled packs, packs in this room, then packs in the canonical
   /// space hierarchy. Historical `im.ponies.*` events remain readable for
-  /// backwards compatibility and are placed alongside the equivalent stable
-  /// source without overriding stable data.
+  /// backwards compatibility without duplicating an equivalent stable pack.
   Map<String, ImagePackContent> getImagePacks([ImagePackUsage? usage]) {
-    final allMxcs = <Uri>{};
     final packs = <String, ImagePackContent>{};
+    final seenPackSources = <String>{};
 
     void addImagePack(BasicEvent? event, {Room? room, String? slug}) {
       if (event == null) return;
+
+      // A stable room image pack supersedes the historical event with the same
+      // room/state key. Track pack identity, rather than media URI identity:
+      // MSC2545 permits multiple shortcodes (and multiple packs) to point at
+      // the same MXC and those entries must remain independently selectable.
+      final semanticType = event.type == _legacyRoomImagePackEventType
+          ? EventTypes.RoomImagePack
+          : event.type;
+      final sourceKey = room == null
+          ? 'account\u0000$semanticType\u0000${event.stateKey ?? ''}'
+          : '${room.id}\u0000$semanticType\u0000${event.stateKey ?? ''}';
+      if (!seenPackSources.add(sourceKey)) return;
+
       final imagePack = event.parsedImagePackContent;
 
       final rawSlug = slug ?? 'pack';
@@ -47,7 +59,6 @@ extension ImagePackRoomExtension on Room {
 
       for (final entry in imagePack.images.entries) {
         final image = entry.value;
-        if (allMxcs.contains(image.url)) continue;
 
         // Image-level usage existed in the historical proposal and is kept for
         // compatibility. Stable MSC2545 defines usage at pack level. An absent
@@ -72,11 +83,10 @@ extension ImagePackRoomExtension on Room {
                 )
                 .images[entry.key] =
             image;
-        allMxcs.add(image.url);
       }
     }
 
-    void addReferencedPacks(BasicEvent? references, {required bool stable}) {
+    void addReferencedPacks(BasicEvent? references) {
       final rooms = references?.content.tryGetMap<String, Object?>('rooms');
       if (rooms == null) return;
 
@@ -88,17 +98,12 @@ extension ImagePackRoomExtension on Room {
         }
 
         for (final stateKey in referencedStateKeys.keys) {
-          final stableEvent = packRoom.getState(
-            EventTypes.RoomImagePack,
-            stateKey,
-          );
-          final legacyEvent = packRoom.getState(
-            _legacyRoomImagePackEventType,
-            stateKey,
-          );
-          final event = stable
-              ? stableEvent ?? legacyEvent
-              : legacyEvent ?? stableEvent;
+          // Stable state always wins when both forms exist. The semantic source
+          // identity above also prevents the same pack being surfaced twice if
+          // both stable and legacy account-data events reference it.
+          final event =
+              packRoom.getState(EventTypes.RoomImagePack, stateKey) ??
+              packRoom.getState(_legacyRoomImagePackEventType, stateKey);
           final fallbackSlug =
               '${packRoom.getLocalizedDisplayname()}-${stateKey.isNotEmpty ? '$stateKey-' : ''}${packRoom.id}';
           addImagePack(event, room: packRoom, slug: fallbackSlug);
@@ -152,10 +157,7 @@ extension ImagePackRoomExtension on Room {
     }
 
     // Stable globally-enabled room packs have the highest priority.
-    addReferencedPacks(
-      client.accountData[EventTypes.ImagePackRooms],
-      stable: true,
-    );
+    addReferencedPacks(client.accountData[EventTypes.ImagePackRooms]);
 
     // Keep Element/MSC2545-era account data readable during migration. The
     // historical direct user pack has no stable equivalent, so it remains as
@@ -164,12 +166,9 @@ extension ImagePackRoomExtension on Room {
       client.accountData[_legacyUserImagePackEventType],
       slug: 'user',
     );
-    addReferencedPacks(
-      client.accountData[_legacyImagePackRoomsEventType],
-      stable: false,
-    );
+    addReferencedPacks(client.accountData[_legacyImagePackRoomsEventType]);
 
-    // Packs in the current room come next. Stable state wins deduplication.
+    // Packs in the current room come next. Stable state wins source identity.
     addRoomPacks(this, EventTypes.RoomImagePack);
     addRoomPacks(this, _legacyRoomImagePackEventType);
 
