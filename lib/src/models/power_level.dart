@@ -3,8 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 extension type PowerLevel(int level) {
-  /// 2^53 - 1 from https://spec.matrix.org/v1.15/appendices/#canonical-json
-  static const int ownerPowerLevel = 9007199254740991;
+  /// Local sentinel for the infinite room-creator power level in room v12+.
+  ///
+  /// Matrix power-level values on the wire are limited to 2^53 - 1 by
+  /// Canonical JSON, so 2^53 is both exactly representable and impossible to
+  /// collide with a legitimate finite power level received from the server.
+  static const int ownerPowerLevel = 9007199254740992;
   static const int defaultAdminLevel = 100;
   static const int defaultModeratorLevel = 50;
   static const int defaultUserLevel = 0;

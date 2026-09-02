@@ -98,7 +98,15 @@ extension MatrixIdExtension on String {
 
   String? get localpart => isValidMatrixIdStrict() ? _getParts().first : null;
 
-  String? get domain => isValidMatrixIdStrict() ? _getParts().last : null;
+  /// Returns the domain component when the identifier actually has one.
+  ///
+  /// Room version 12 room IDs and modern event IDs are domainless, so their
+  /// opaque localpart must never be mistaken for a server name.
+  String? get domain {
+    if (!isValidMatrixIdStrict()) return null;
+    final parts = _getParts();
+    return parts.length == 2 ? parts[1] : null;
+  }
 
   bool equals(String? other) => toLowerCase() == other?.toLowerCase();
 
@@ -197,12 +205,15 @@ String matrixEventUri(String roomIdentifier, String eventId) {
   if (roomIdentifier.isEmpty || eventId.isEmpty) return '';
   final roomSigil = roomIdentifier[0];
   final roomIdWithoutSigil = roomIdentifier.substring(1);
-  final encodedRoomId =
-      Uri.encodeComponent(roomIdWithoutSigil).replaceAll('%3A', ':');
-  final eventIdWithoutSigil =
-      eventId.startsWith('\$') ? eventId.substring(1) : eventId;
-  final encodedEventId =
-      Uri.encodeComponent(eventIdWithoutSigil).replaceAll('%3A', ':');
+  final encodedRoomId = Uri.encodeComponent(
+    roomIdWithoutSigil,
+  ).replaceAll('%3A', ':');
+  final eventIdWithoutSigil = eventId.startsWith('\$')
+      ? eventId.substring(1)
+      : eventId;
+  final encodedEventId = Uri.encodeComponent(
+    eventIdWithoutSigil,
+  ).replaceAll('%3A', ':');
   switch (roomSigil) {
     case '#':
       return 'matrix:r/$encodedRoomId/e/$encodedEventId';

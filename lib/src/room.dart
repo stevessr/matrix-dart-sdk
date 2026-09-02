@@ -31,7 +31,7 @@ const String fileSendingStatusKey =
 
 /// Represents a Matrix room.
 class Room {
-  /// The full qualified Matrix ID for the room in the format '!localid:server.abc'.
+  /// The opaque Matrix room ID. Room version 12+ IDs are domainless.
   final String id;
 
   /// Membership status of the user for this room.
@@ -2336,9 +2336,15 @@ class Room {
   Set<String> get creatorUserIds {
     final creationEvent = getState(EventTypes.RoomCreate);
     if (creationEvent == null) return {};
-    final additionalCreators =
-        creationEvent.content.tryGetList<String>('additional_creators') ?? [];
-    return {creationEvent.senderId, ...additionalCreators};
+
+    final creators = <String>{creationEvent.senderId};
+    final parsedRoomVersion = int.tryParse(roomVersion ?? '');
+    if (parsedRoomVersion != null && parsedRoomVersion >= 12) {
+      creators.addAll(
+        creationEvent.content.tryGetList<String>('additional_creators') ?? [],
+      );
+    }
+    return creators;
   }
 
   /// Returns the power level of the given user ID.
