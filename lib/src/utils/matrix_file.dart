@@ -78,6 +78,17 @@ class MatrixFile {
   }
 }
 
+bool? _detectImageAnimation(Uint8List bytes) {
+  try {
+    final decoder = findDecoderForData(bytes);
+    final decodeInfo = decoder?.startDecode(bytes);
+    if (decodeInfo == null) return null;
+    return decodeInfo.numFrames > 1;
+  } catch (_) {
+    return null;
+  }
+}
+
 class MatrixImageFile extends MatrixFile {
   MatrixImageFile({
     required super.bytes,
@@ -86,8 +97,11 @@ class MatrixImageFile extends MatrixFile {
     int? width,
     int? height,
     this.blurhash,
+    bool? isAnimated,
   }) : _width = width,
-       _height = height;
+       _height = height,
+       _isAnimated = isAnimated,
+       _animationStatusResolved = isAnimated != null;
 
   /// Creates a new image file and calculates the width, height and blurhash.
   static Future<MatrixImageFile> create({
@@ -111,6 +125,10 @@ class MatrixImageFile extends MatrixFile {
   /// Builds a [MatrixImageFile] and shrinks it in order to reduce traffic.
   /// If shrinking does not work (e.g. for unsupported MIME types), the
   /// initial image is preserved without shrinking it.
+  ///
+  /// Animated images are intentionally preserved. The generic image resizer
+  /// operates on raster frames and could otherwise collapse an animation to a
+  /// static image while still being sent as the original media type.
   static Future<MatrixImageFile> shrink({
     required Uint8List bytes,
     required String name,
@@ -123,6 +141,7 @@ class MatrixImageFile extends MatrixFile {
     NativeImplementations nativeImplementations = NativeImplementations.dummy,
   }) async {
     final image = MatrixImageFile(name: name, mimeType: mimeType, bytes: bytes);
+    if (image.isAnimated == true) return image;
 
     return await image.generateThumbnail(
           dimension: maxDimension,
@@ -148,6 +167,22 @@ class MatrixImageFile extends MatrixFile {
     _height ??= height;
   }
 
+  bool? _isAnimated;
+  bool _animationStatusResolved;
+
+  /// Whether the original image contains more than one animation frame.
+  ///
+  /// Matrix v1.18 stabilised this as `info.is_animated` for `m.image` and
+  /// `m.sticker`. Detection is lazy so downloaded images do not incur decoder
+  /// work unless their outgoing metadata is inspected.
+  bool? get isAnimated {
+    if (!_animationStatusResolved) {
+      _animationStatusResolved = true;
+      _isAnimated = _detectImageAnimation(bytes);
+    }
+    return _isAnimated;
+  }
+
   /// generates the blur hash for the image
   final String? blurhash;
 
@@ -155,12 +190,16 @@ class MatrixImageFile extends MatrixFile {
   String get msgType => 'm.image';
 
   @override
-  Map<String, dynamic> get info => ({
-    ...super.info,
-    if (width != null) 'w': width,
-    if (height != null) 'h': height,
-    if (blurhash != null) 'xyz.amorgan.blurhash': blurhash,
-  });
+  Map<String, dynamic> get info {
+    final isAnimated = this.isAnimated;
+    return {
+      ...super.info,
+      if (width != null) 'w': width,
+      if (height != null) 'h': height,
+      if (isAnimated != null) 'is_animated': isAnimated,
+      if (blurhash != null) 'xyz.amorgan.blurhash': blurhash,
+    };
+  }
 
   /// Computes a thumbnail for the image.
   /// Also sets height and width on the original image if they were unset.
