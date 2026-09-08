@@ -73,6 +73,7 @@ void main() async {
         archiveRoom.lastEvent?.body,
         'This is a second text example message',
       );
+      expect(timeline.chunk.prevBatch, 't_1234a');
       await timeline.requestHistory();
 
       expect(timeline.events.length, 6);

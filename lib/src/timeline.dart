@@ -4,7 +4,6 @@
 
 import 'dart:async';
 
-
 import '../matrix.dart';
 
 /// Abstract base class for all timeline implementations.
@@ -18,16 +17,16 @@ abstract class Timeline {
 
   /// Called when the timeline is updated
   final void Function()? onUpdate;
-  
+
   /// Called when an event at specific index changes
   final void Function(int index)? onChange;
-  
+
   /// Called when an event is inserted at specific index
   final void Function(int index)? onInsert;
-  
+
   /// Called when an event is removed from specific index
   final void Function(int index)? onRemove;
-  
+
   /// Called when a new event is added to the timeline
   final void Function()? onNewEvent;
 

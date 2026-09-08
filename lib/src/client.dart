@@ -129,6 +129,9 @@ class Client extends MatrixApi {
 
   final Duration sendTimelineEventTimeout;
 
+  final bool autoRequestProfileForMissingUsers;
+  final bool getDisplayNameAndAvatarFromPrevContent;
+
   /// The timeout until a typing indicator gets removed automatically.
   final Duration typingIndicatorTimeout;
 
@@ -244,6 +247,15 @@ class Client extends MatrixApi {
     this.dehydratedDeviceDisplayName = 'Dehydrated Device',
     RoomSorter? customRoomSorter,
     this.contentScannerConfig,
+
+    /// Whether the app automatically requests the profile for users which have
+    /// no filled out member state in a room. This is e.g. the case for left
+    /// or banned users.
+    this.autoRequestProfileForMissingUsers = true,
+
+    /// Whether the app should get DisplayName and Avatar also from the
+    /// previous content of a member state event.
+    this.getDisplayNameAndAvatarFromPrevContent = true,
   }) : _database = database,
        syncFilter =
            syncFilter ??
@@ -400,10 +412,7 @@ class Client extends MatrixApi {
   List<Room> get rooms => _rooms;
   List<Room> _rooms = [];
 
-  /// Get a list of the archived rooms
-  ///
-  /// Attention! Archived rooms are only returned if [loadArchive()] was called
-  /// beforehand! The state refers to the last retrieval via [loadArchive()]!
+  /// Get a list of the archived rooms loaded by [loadArchive].
   List<ArchivedRoom> get archivedRooms => _archivedRooms;
 
   bool enableDehydratedDevices = false;
@@ -472,8 +481,7 @@ class Client extends MatrixApi {
   }
 
   /// Searches in the local cache for the given room and returns null if not
-  /// found. If you have loaded the [loadArchive()] before, it can also return
-  /// archived rooms.
+  /// found. If [loadArchive] was called, archived rooms are included too.
   Room? getRoomById(String id) {
     for (final room in <Room>[...rooms, ..._archivedRooms.map((e) => e.room)]) {
       if (room.id == id) return room;
@@ -1269,7 +1277,6 @@ class Client extends MatrixApi {
       filter: filter,
       timeout: _archiveCacheBusterTimeout,
       setPresence: syncPresence,
-      useStateAfter: true,
     );
     // wrap around and hope there are not more than 30 leaves in 2 minutes :)
     _archiveCacheBusterTimeout = (_archiveCacheBusterTimeout + 1) % 30;
@@ -1317,18 +1324,6 @@ class Client extends MatrixApi {
     // Set membership of room to leave, in the case we got a left room passed, otherwise
     // the left room would have still membership join, which would be wrong for the setState later
     archivedRoom.membership = Membership.leave;
-    final timeline = RoomTimeline(
-      room: archivedRoom,
-      chunk: TimelineChunk(
-        events:
-            roomUpdate.timeline?.events?.reversed
-                .toList() // we display the event in the other seence
-                .map((e) => Event.fromMatrixEvent(e, archivedRoom))
-                .toList() ??
-            [],
-      ),
-    );
-
     archivedRoom.prev_batch = update.timeline?.prevBatch;
 
     final stateEvents = roomUpdate.stateAfter ?? roomUpdate.state;
@@ -1351,6 +1346,21 @@ class Client extends MatrixApi {
         updateRoomState: roomUpdate.stateAfter == null,
       );
     }
+
+    // Subscribe only after seeding the initial events. Otherwise the event
+    // stream echoes the seed events back into the new timeline.
+    final timeline = RoomTimeline(
+      room: archivedRoom,
+      chunk: TimelineChunk(
+        events:
+            timelineEvents?.reversed
+                .toList() // we display the event in the other seence
+                .map((e) => Event.fromMatrixEvent(e, archivedRoom))
+                .toList() ??
+            [],
+        prevBatch: roomUpdate.timeline?.prevBatch ?? '',
+      ),
+    );
 
     for (var i = 0; i < timeline.events.length; i++) {
       // Try to decrypt encrypted events but don't update the database.
@@ -2937,13 +2947,16 @@ class Client extends MatrixApi {
             room,
             timelineEvents,
             timelineUpdateType,
-            store: false,
+            store: syncFilter.room?.includeLeave == true,
             updateRoomState: syncRoomUpdate.stateAfter == null,
           );
         }
         final accountData = syncRoomUpdate.accountData;
         if (accountData != null && accountData.isNotEmpty) {
           for (final event in accountData) {
+            if (syncFilter.room?.includeLeave == true) {
+              await database.storeRoomAccountData(room.id, event);
+            }
             room.roomAccountData[event.type] = event;
           }
         }
@@ -2953,7 +2966,7 @@ class Client extends MatrixApi {
             room,
             state,
             EventUpdateType.state,
-            store: false,
+            store: syncFilter.room?.includeLeave == true,
           );
         }
       }
@@ -3209,25 +3222,40 @@ class Client extends MatrixApi {
                   summary: chatUpdate.summary,
                   client: this,
                 )
-              : Room(id: roomId, membership: membership, client: this));
+              : Room(
+                  id: roomId,
+                  membership: membership,
+                  prev_batch: chatUpdate is LeftRoomUpdate
+                      ? chatUpdate.timeline?.prevBatch
+                      : null,
+                  client: this,
+                ));
 
     // Does the chat already exist in the list rooms?
     if (!found && membership != Membership.leave) {
-      // Check if the room is not in the rooms in the invited list
+      // A room that was archived and then joined again is no longer archived.
       if (_archivedRooms.isNotEmpty) {
         _archivedRooms.removeWhere((archive) => archive.room.id == roomId);
       }
       final position = membership == Membership.invite ? 0 : rooms.length;
       // Add the new chat to the list
       rooms.insert(position, room);
+    } else if (membership == .invite && found) {
+      rooms[roomIndex].membership = membership;
     }
     // If the membership is "leave" then remove the item and stop here
-    else if (found && membership == Membership.leave) {
-      rooms.removeAt(roomIndex);
-
-      // in order to keep the archive in sync, add left room to archive
-      if (chatUpdate is LeftRoomUpdate) {
-        await _storeArchivedRoom(room.id, chatUpdate, leftRoom: room);
+    else if (membership == Membership.leave) {
+      if (syncFilter.room?.includeLeave == true) {
+        if (!found) {
+          rooms.add(room);
+        } else {
+          rooms[roomIndex].membership = membership;
+        }
+      } else if (found) {
+        rooms.removeAt(roomIndex);
+        if (chatUpdate is LeftRoomUpdate) {
+          await _storeArchivedRoom(room.id, chatUpdate, leftRoom: room);
+        }
       }
     }
     // Update notification, highlight count and/or additional information
