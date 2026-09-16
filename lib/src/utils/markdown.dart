@@ -111,10 +111,22 @@ class EmoteSyntax extends InlineSyntax {
 }
 
 class InlineLatexSyntax extends InlineSyntax {
-  InlineLatexSyntax() : super(r'\$([^\s$]([^\$]*[^\s$])?)\$');
+  // A backslash escapes the following character, so an escaped dollar must be
+  // part of the TeX payload instead of terminating it. Unescaped dollars are
+  // still delimiters and inline math never spans a physical newline.
+  InlineLatexSyntax() : super(r'\$((?:\\.|[^\\$\n])+)\$');
 
   @override
   bool onMatch(InlineParser parser, Match match) {
+    final latex = match[1]!;
+    // Keep the historical rule that inline math cannot start or end in
+    // whitespace. Treat the complete candidate as text instead of partially
+    // re-parsing it, which also avoids currency-like false positives.
+    if (latex.trim() != latex) {
+      parser.addNode(Text(match[0]!));
+      return true;
+    }
+
     if (match.start > 0) {
       final precedingText = match.input.substring(0, match.start);
       final urlMatch = RegExp(
@@ -127,9 +139,9 @@ class InlineLatexSyntax extends InlineSyntax {
     }
 
     final element = Element('span', [
-      Element.text('code', htmlEscape.convert(match[1]!)),
+      Element.text('code', htmlEscape.convert(latex)),
     ]);
-    element.attributes['data-mx-maths'] = htmlAttrEscape.convert(match[1]!);
+    element.attributes['data-mx-maths'] = htmlAttrEscape.convert(latex);
     parser.addNode(element);
     return true;
   }
@@ -219,9 +231,10 @@ class MentionSyntax extends InlineSyntax {
       parser.addNode(Text(match[0]!));
       return true;
     }
+    final identifier = getMention?.call(match[1]!);
     final element = Element.text('a', htmlEscape.convert(match[1]!));
     element.attributes['href'] = htmlAttrEscape.convert(
-      'https://matrix.to/#/$mention',
+      'https://matrix.to/#/$identifier',
     );
     parser.addNode(element);
     return true;
