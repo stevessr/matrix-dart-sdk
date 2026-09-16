@@ -10,7 +10,8 @@ void main() {
     test('keeps escaped dollars inside one math node', () {
       expect(
         markdown(r'cost $\text{price \$5}$'),
-        r'cost <span data-mx-maths="\text{price \$5}"><code>\text{price \$5}</code></span>',
+        r'cost <span data-mx-maths="\text{price \$5}"><code>\text{price \$5}</code></span>'
+            .replaceAll(r'\"', '"'),
       );
     });
 
@@ -26,7 +27,8 @@ void main() {
     test('recognizes adjacent independent formulas', () {
       expect(
         markdown(r'$a_1$ and $b_2$'),
-        r'<span data-mx-maths="a_1"><code>a_1</code></span> and <span data-mx-maths="b_2"><code>b_2</code></span>',
+        '<span data-mx-maths="a_1"><code>a_1</code></span> '
+        'and <span data-mx-maths="b_2"><code>b_2</code></span>',
       );
     });
 
