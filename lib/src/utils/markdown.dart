@@ -231,10 +231,9 @@ class MentionSyntax extends InlineSyntax {
       parser.addNode(Text(match[0]!));
       return true;
     }
-    final identifier = getMention?.call(match[1]!);
     final element = Element.text('a', htmlEscape.convert(match[1]!));
     element.attributes['href'] = htmlAttrEscape.convert(
-      'https://matrix.to/#/$identifier',
+      'https://matrix.to/#/$mention',
     );
     parser.addNode(element);
     return true;
