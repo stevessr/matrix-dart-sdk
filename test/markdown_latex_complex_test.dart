@@ -10,8 +10,7 @@ void main() {
     test('keeps escaped dollars inside one math node', () {
       expect(
         markdown(r'cost $\text{price \$5}$'),
-        r'cost <span data-mx-maths="\text{price \$5}"><code>\text{price \$5}</code></span>'
-            .replaceAll(r'\"', '"'),
+        r'cost <span data-mx-maths="\text{price \$5}"><code>\text{price \$5}</code></span>',
       );
     });
 
