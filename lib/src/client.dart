@@ -2867,6 +2867,10 @@ class Client extends MatrixApi {
       final id = entry.key;
       final syncRoomUpdate = entry.value;
 
+      // Must be sampled before _updateRoomsByRoomUpdate, which evicts left
+      // rooms from `rooms` and would make every leave look like an unknown room.
+      final wasKnownRoom = getRoomById(id) != null;
+
       final room = await _updateRoomsByRoomUpdate(id, syncRoomUpdate);
 
       // Is the timeline limited? Then all previous messages should be
@@ -2983,7 +2987,9 @@ class Client extends MatrixApi {
           await _handleRoomEvents(room, state, EventUpdateType.knockState);
         }
       }
-      if (syncRoomUpdate is LeftRoomUpdate && getRoomById(id) == null) {
+      if (syncRoomUpdate is LeftRoomUpdate &&
+          !wasKnownRoom &&
+          getRoomById(id) == null) {
         Logs().d('Skip store LeftRoomUpdate for unknown room', id);
         continue;
       }
