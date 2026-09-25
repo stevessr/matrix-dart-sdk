@@ -41,16 +41,25 @@ extension PollEventExtension on Event {
       }
       responses[event.senderId] = event;
     }
-    return responses.map(
-      (userId, event) => MapEntry(
-        userId,
-        event.content
-                .tryGetMap<String, Object?>(PollEventContent.responseType)
-                ?.tryGetList<String>('answers')
-                ?.toSet() ??
-            {},
-      ),
-    );
+    final poll = parsedPollEventContent.pollStartContent;
+    final knownAnswerIds = poll.answers.map((answer) => answer.id).toSet();
+
+    return responses.map((userId, event) {
+      final submittedAnswers =
+          event.content
+              .tryGetMap<String, Object?>(PollEventContent.responseType)
+              ?.tryGetList<String>('answers') ??
+          const <String>[];
+
+      // MSC3381 requires truncation before duplicate removal. If any answer
+      // remaining after truncation is unknown, the entire latest vote is
+      // spoiled instead of falling back to an older response.
+      final truncatedAnswers = submittedAnswers.take(poll.maxSelections);
+      if (truncatedAnswers.any((answer) => !knownAnswerIds.contains(answer))) {
+        return MapEntry(userId, <String>{});
+      }
+      return MapEntry(userId, truncatedAnswers.toSet());
+    });
   }
 
   /// Fetches poll response events from the server for fragmented timelines
@@ -145,7 +154,8 @@ extension PollEventExtension on Event {
           'rel_type': RelationshipTypes.reference,
           'event_id': eventId,
         },
-        PollEventContent.endType: {},
+        PollEventContent.mTextJsonKey: 'The poll has ended.',
+        PollEventContent.endType: <String, Object?>{},
       },
       type: PollEventContent.endType,
       txid: txid,
