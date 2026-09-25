@@ -44,9 +44,13 @@ class PollStartContent {
         kind: PollKind.values.singleWhereOrNull(
           (kind) => kind.name == json['kind'],
         ),
-        maxSelections: json['max_selections'],
+        maxSelections: switch (json['max_selections']) {
+          final int value when value >= 1 => value,
+          _ => 1,
+        },
         question: PollQuestion.fromJson(json['question']),
         answers: (json['answers'] as List)
+            .take(20)
             .map((i) => PollAnswer.fromJson(i))
             .toList(),
       );
