@@ -16,6 +16,9 @@ extension PollRoomExtension on Room {
     if (answers.length > 20) {
       throw Exception('Client must not set more than 20 answers in a poll');
     }
+    if (maxSelections < 1) {
+      throw Exception('Poll max_selections must be at least 1');
+    }
 
     if (body == null) {
       body = question;
